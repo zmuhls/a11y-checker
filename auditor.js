@@ -2,7 +2,7 @@ const { chromium } = require("playwright");
 const AxeBuilder = require("@axe-core/playwright").default;
 const { URL } = require("url");
 
-const MAX_PAGES = 50;
+const MAX_PAGES = parseInt(process.env.MAX_PAGES, 10) || 50;
 
 const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 800 },
@@ -18,10 +18,11 @@ const WCAG_TAGS = [
 ];
 
 class Auditor {
-  constructor(emit, { baseUrl, seedPaths = ["/"] } = {}) {
+  constructor(emit, { baseUrl, seedPaths = ["/"], maxPages } = {}) {
     this.emit = emit;
     this.baseUrl = baseUrl;
     this.seedPaths = seedPaths;
+    this.maxPages = maxPages || MAX_PAGES;
     this.visited = new Set();
     this.queue = [];
     this.allViolations = [];
@@ -32,6 +33,9 @@ class Auditor {
 
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
+
+    // Discover pages from sitemap.xml and robots.txt before crawling
+    await this.discoverFromSitemap(context);
 
     // Seed the queue
     for (const p of this.seedPaths) {
@@ -44,7 +48,7 @@ class Auditor {
 
     let pageIndex = 0;
 
-    while (this.queue.length > 0 && pageIndex < MAX_PAGES) {
+    while (this.queue.length > 0 && pageIndex < this.maxPages) {
       const url = this.queue.shift();
       pageIndex++;
 
@@ -67,7 +71,7 @@ class Auditor {
       }
 
       // Discover links from the page (desktop viewport only)
-      if (this.visited.size < MAX_PAGES) {
+      if (this.visited.size < this.maxPages) {
         try {
           await this.discoverLinks(context, url);
         } catch (_) {
@@ -139,18 +143,29 @@ class Auditor {
         anchors.map((a) => a.href)
       );
 
+      // Also grab nav links, footer links, and aria-labeled sections
+      const navHrefs = await page.$$eval(
+        "nav a[href], footer a[href], [role='navigation'] a[href]",
+        (anchors) => anchors.map((a) => a.href)
+      );
+
+      const allHrefs = [...new Set([...hrefs, ...navHrefs])];
       const baseHost = new URL(this.baseUrl).host;
-      for (const href of hrefs) {
+      for (const href of allHrefs) {
         try {
           const parsed = new URL(href);
-          // Same domain, no fragments/query, http(s) only
           if (
             parsed.host === baseHost &&
             (parsed.protocol === "https:" || parsed.protocol === "http:") &&
             !parsed.hash
           ) {
-            const clean = parsed.origin + parsed.pathname.replace(/\/$/, "") + "/";
-            if (!this.visited.has(clean) && this.visited.size < MAX_PAGES) {
+            const clean = parsed.origin + parsed.pathname.replace(/\/$/, "");
+            const cleanSlash = clean + "/";
+            if (
+              !this.visited.has(clean) &&
+              !this.visited.has(cleanSlash) &&
+              this.visited.size < this.maxPages
+            ) {
               this.visited.add(clean);
               this.queue.push(clean);
             }
@@ -159,6 +174,73 @@ class Auditor {
       }
     } finally {
       await page.close();
+    }
+  }
+
+  async discoverFromSitemap(context) {
+    const baseOrigin = new URL(this.baseUrl).origin;
+    const sitemapUrls = new Set();
+
+    // Try robots.txt first to find sitemap locations
+    try {
+      const page = await context.newPage();
+      try {
+        await page.goto(`${baseOrigin}/robots.txt`, {
+          waitUntil: "domcontentloaded",
+          timeout: 10000,
+        });
+        const text = await page.textContent("body");
+        const lines = text.split("\n");
+        for (const line of lines) {
+          const match = line.match(/^sitemap:\s*(.+)/i);
+          if (match) sitemapUrls.add(match[1].trim());
+        }
+      } finally {
+        await page.close();
+      }
+    } catch (_) {}
+
+    // Always try the default sitemap location
+    sitemapUrls.add(`${baseOrigin}/sitemap.xml`);
+
+    const baseHost = new URL(this.baseUrl).host;
+    let discovered = 0;
+
+    for (const sitemapUrl of sitemapUrls) {
+      if (discovered >= this.maxPages) break;
+      try {
+        const page = await context.newPage();
+        try {
+          await page.goto(sitemapUrl, {
+            waitUntil: "domcontentloaded",
+            timeout: 10000,
+          });
+          const locs = await page.$$eval("loc", (els) =>
+            els.map((el) => el.textContent.trim())
+          );
+          for (const loc of locs) {
+            try {
+              const parsed = new URL(loc);
+              if (parsed.host === baseHost) {
+                const clean = parsed.origin + parsed.pathname.replace(/\/$/, "");
+                if (!this.visited.has(clean) && this.visited.size < this.maxPages) {
+                  this.visited.add(clean);
+                  this.queue.push(clean);
+                  discovered++;
+                }
+              }
+            } catch (_) {}
+          }
+        } finally {
+          await page.close();
+        }
+      } catch (_) {}
+    }
+
+    if (discovered > 0) {
+      this.emit("status", {
+        message: `Discovered ${discovered} pages from sitemap`,
+      });
     }
   }
 }

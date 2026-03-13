@@ -15,10 +15,25 @@ Then open [http://localhost:3000](http://localhost:3000) to watch the audit in r
 
 You can also run `npm start` and enter the URL when prompted.
 
+## Page discovery
+
+The crawler automatically finds pages on your site using multiple strategies:
+
+- Parses `robots.txt` for sitemap directives
+- Reads `sitemap.xml` to discover all listed URLs
+- Follows internal links from page content, navigation, and footer elements
+- Deduplicates URLs and caps at 50 pages by default
+
+To increase the page limit:
+
+```bash
+MAX_PAGES=100 node server.js https://example.com
+```
+
 ## What it does
 
-- Crawls up to 50 pages starting from the URL you provide
-- Tests every page at both desktop (1280×800) and mobile (375×812) viewports
+- Crawls pages starting from the URL you provide
+- Tests every page at both desktop (1280x800) and mobile (375x812) viewports
 - Checks against WCAG 2.1 Level AA criteria plus best practices
 - Streams violations to a browser dashboard as they're found
 - Exports a full JSON report when the audit completes (`/report.json`)

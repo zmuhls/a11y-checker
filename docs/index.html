@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a11y-checker</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --grid: #1a1a1a;
+    --border: #222222;
+    --text: #e0e0e0;
+    --muted: #777777;
+    --accent: #ffffff;
+    --dim: #444444;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "SF Mono", "Fira Code", "JetBrains Mono", "Cascadia Code", monospace;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    min-height: 100vh;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 4rem 2rem;
+  }
+
+  header {
+    margin-bottom: 3rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
+
+  .tagline {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+
+  h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 2.5rem 0 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.8rem;
+  }
+
+  p, li {
+    font-size: 0.88rem;
+    color: var(--text);
+  }
+
+  p + p { margin-top: 0.75rem; }
+
+  ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  ul li {
+    padding: 0.35rem 0;
+    padding-left: 1.2rem;
+    position: relative;
+  }
+
+  ul li::before {
+    content: ">";
+    position: absolute;
+    left: 0;
+    color: var(--dim);
+  }
+
+  code, pre {
+    font-family: inherit;
+    font-size: 0.85rem;
+  }
+
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    margin: 0.75rem 0;
+  }
+
+  code {
+    background: var(--surface);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+  }
+
+  .prompt {
+    color: var(--dim);
+    user-select: none;
+  }
+
+  .cmd { color: var(--accent); }
+  .arg { color: var(--muted); }
+
+  a {
+    color: var(--text);
+    text-decoration: underline;
+    text-decoration-color: var(--dim);
+    text-underline-offset: 3px;
+  }
+
+  a:hover {
+    color: var(--accent);
+    text-decoration-color: var(--accent);
+  }
+
+  .features {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+
+  .feature {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1rem;
+  }
+
+  .feature strong {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--accent);
+    margin-bottom: 0.3rem;
+  }
+
+  .feature span {
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-right: 0.4rem;
+  }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.78rem;
+    color: var(--dim);
+  }
+
+  @media (max-width: 560px) {
+    .container { padding: 2rem 1.25rem; }
+    .features { grid-template-columns: 1fr; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>a11y-checker</h1>
+    <p class="tagline">real-time WCAG 2.1 AA accessibility auditor</p>
+    <div style="margin-top: 0.75rem">
+      <span class="badge">axe-core</span>
+      <span class="badge">playwright</span>
+      <span class="badge">WCAG 2.1 AA</span>
+    </div>
+  </header>
+
+  <h2>Quick Start</h2>
+  <pre><code><span class="prompt">$</span> <span class="cmd">git clone</span> <span class="arg">https://github.com/zmuhls/a11y-checker.git</span>
+<span class="prompt">$</span> <span class="cmd">cd</span> <span class="arg">a11y-checker</span>
+<span class="prompt">$</span> <span class="cmd">npm install</span>
+<span class="prompt">$</span> <span class="cmd">node server.js</span> <span class="arg">https://example.com</span></code></pre>
+  <p>Then open <code>http://localhost:3000</code> to watch the audit in real time.</p>
+
+  <h2>How It Works</h2>
+  <p>Point it at any URL. The crawler automatically discovers pages via sitemap.xml, robots.txt, and link traversal. Every page is tested at desktop and mobile viewports against WCAG 2.1 Level AA criteria.</p>
+  <p>Violations stream to a browser dashboard as they're found. When the audit finishes, export a full JSON report.</p>
+
+  <h2>Page Discovery</h2>
+  <p>The crawler uses multiple strategies to find pages on your site:</p>
+  <ul>
+    <li>Parses <code>robots.txt</code> for sitemap directives</li>
+    <li>Reads <code>sitemap.xml</code> to discover all listed URLs</li>
+    <li>Follows internal links found in page content, nav, and footer</li>
+    <li>Deduplicates URLs and caps at 50 pages (configurable via <code>MAX_PAGES</code>)</li>
+  </ul>
+  <p>To customize the page limit:</p>
+  <pre><code><span class="prompt">$</span> <span class="cmd">MAX_PAGES=100 node server.js</span> <span class="arg">https://example.com</span></code></pre>
+
+  <h2>Features</h2>
+  <div class="features">
+    <div class="feature">
+      <strong>Dual Viewport</strong>
+      <span>Desktop (1280x800) and mobile (375x812) testing for every page</span>
+    </div>
+    <div class="feature">
+      <strong>Live Dashboard</strong>
+      <span>Violations stream in real time via SSE with severity and viewport filters</span>
+    </div>
+    <div class="feature">
+      <strong>Smart Crawl</strong>
+      <span>Sitemap + robots.txt + link discovery finds pages automatically</span>
+    </div>
+    <div class="feature">
+      <strong>JSON Export</strong>
+      <span>Full report with rule IDs, WCAG tags, selectors, and help links</span>
+    </div>
+  </div>
+
+  <h2>Requirements</h2>
+  <ul>
+    <li>Node.js 18+</li>
+    <li>Chromium (auto-installed by Playwright on first run)</li>
+  </ul>
+
+  <footer>
+    <a href="https://github.com/zmuhls/a11y-checker">github.com/zmuhls/a11y-checker</a> &middot; MIT License
+  </footer>
+</div>
+</body>
+</html>
