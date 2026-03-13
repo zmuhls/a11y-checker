@@ -1,6 +1,6 @@
 # a11y-checker
 
-An automated accessibility auditor that checks web pages against WCAG 2.1 AA standards. Runs entirely on GitHub Actions — no local setup required.
+An automated accessibility auditor that checks web pages against WCAG 2.1 AA standards.
 
 ## What it does
 
