@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A11y Checker</title>
+<style>
+  :root {
+    --critical: #e53e3e;
+    --serious: #dd6b20;
+    --moderate: #d69e2e;
+    --minor: #3182ce;
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --text: #e2e8f0;
+    --muted: #a0aec0;
+    --border: #2d3748;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    padding: 1rem 1.5rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  header h1 { font-size: 1.2rem; font-weight: 600; }
+  header h1 span { color: var(--muted); font-weight: 400; }
+
+  .counters {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .counter {
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--border);
+  }
+  .counter.critical { border-left: 3px solid var(--critical); }
+  .counter.serious { border-left: 3px solid var(--serious); }
+  .counter.moderate { border-left: 3px solid var(--moderate); }
+  .counter.minor { border-left: 3px solid var(--minor); }
+
+  .toolbar {
+    padding: 0.75rem 1.5rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .toolbar label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-right: 0.25rem;
+  }
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    background: var(--border);
+    border: 1px solid transparent;
+    color: var(--text);
+    transition: opacity 0.15s;
+  }
+  .toggle.off { opacity: 0.4; }
+  .toggle input { display: none; }
+  .spacer { flex: 1; }
+  button.export {
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    background: #4a5568;
+    color: var(--text);
+    border: none;
+    cursor: pointer;
+  }
+  button.export:disabled { opacity: 0.4; cursor: default; }
+
+  .progress {
+    padding: 0.5rem 1.5rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  #log {
+    padding: 1rem 1.5rem;
+    overflow-y: auto;
+    height: calc(100vh - 200px);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .entry {
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.82rem;
+    font-family: "SF Mono", "Fira Code", monospace;
+    background: var(--surface);
+    border-left: 3px solid var(--border);
+    word-break: break-word;
+  }
+  .entry.critical { border-left-color: var(--critical); }
+  .entry.serious { border-left-color: var(--serious); }
+  .entry.moderate { border-left-color: var(--moderate); }
+  .entry.minor { border-left-color: var(--minor); }
+  .entry.status { border-left-color: #48bb78; color: var(--muted); }
+  .entry.error { border-left-color: var(--critical); color: var(--critical); }
+  .entry .impact {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-right: 0.4rem;
+  }
+  .entry.critical .impact { background: var(--critical); color: #fff; }
+  .entry.serious .impact { background: var(--serious); color: #fff; }
+  .entry.moderate .impact { background: var(--moderate); color: #000; }
+  .entry.minor .impact { background: var(--minor); color: #fff; }
+  .entry .url { color: var(--muted); }
+  .entry .rule { font-weight: 600; }
+  .entry a { color: #63b3ed; text-decoration: none; }
+  .entry a:hover { text-decoration: underline; }
+  .entry .target { color: var(--muted); font-size: 0.78rem; }
+  .entry .viewport-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+    background: var(--border);
+    margin-left: 0.3rem;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>A11y Checker <span id="target-label"></span></h1>
+  <div class="counters">
+    <div class="counter" id="total">Total: 0</div>
+    <div class="counter critical" id="cnt-critical">Critical: 0</div>
+    <div class="counter serious" id="cnt-serious">Serious: 0</div>
+    <div class="counter moderate" id="cnt-moderate">Moderate: 0</div>
+    <div class="counter minor" id="cnt-minor">Minor: 0</div>
+  </div>
+</header>
+
+<div class="toolbar">
+  <label>Severity:</label>
+  <label class="toggle" data-filter="critical"><input type="checkbox" checked>Critical</label>
+  <label class="toggle" data-filter="serious"><input type="checkbox" checked>Serious</label>
+  <label class="toggle" data-filter="moderate"><input type="checkbox" checked>Moderate</label>
+  <label class="toggle" data-filter="minor"><input type="checkbox" checked>Minor</label>
+  <label style="margin-left:1rem">Viewport:</label>
+  <label class="toggle" data-filter="desktop"><input type="checkbox" checked>Desktop</label>
+  <label class="toggle" data-filter="mobile"><input type="checkbox" checked>Mobile</label>
+  <span class="spacer"></span>
+  <button class="export" id="export-btn" disabled>Export JSON</button>
+</div>
+
+<div class="progress" id="progress">Connecting...</div>
+
+<div id="log"></div>
+
+<script>
+// Fetch target URL
+fetch("/target").then(r => r.json()).then(d => {
+  document.getElementById("target-label").textContent = `— ${new URL(d.url).hostname}`;
+  document.title = `A11y Checker — ${new URL(d.url).hostname}`;
+});
+
+const log = document.getElementById("log");
+const progress = document.getElementById("progress");
+const exportBtn = document.getElementById("export-btn");
+
+const counts = { total: 0, critical: 0, serious: 0, moderate: 0, minor: 0 };
+const filters = { critical: true, serious: true, moderate: true, minor: true, desktop: true, mobile: true };
+let autoScroll = true;
+
+// Track scroll — disable auto-scroll if user scrolls up
+log.addEventListener("scroll", () => {
+  autoScroll = log.scrollTop + log.clientHeight >= log.scrollHeight - 40;
+});
+
+// Filters
+document.querySelectorAll(".toggle").forEach(label => {
+  const cb = label.querySelector("input");
+  const key = label.dataset.filter;
+  cb.addEventListener("change", () => {
+    filters[key] = cb.checked;
+    label.classList.toggle("off", !cb.checked);
+    applyFilters();
+  });
+});
+
+function applyFilters() {
+  log.querySelectorAll(".entry.violation").forEach(el => {
+    const impact = el.dataset.impact;
+    const vp = el.dataset.viewport;
+    const show = filters[impact] !== false && filters[vp] !== false;
+    el.style.display = show ? "" : "none";
+  });
+}
+
+function updateCounters() {
+  document.getElementById("total").textContent = `Total: ${counts.total}`;
+  document.getElementById("cnt-critical").textContent = `Critical: ${counts.critical}`;
+  document.getElementById("cnt-serious").textContent = `Serious: ${counts.serious}`;
+  document.getElementById("cnt-moderate").textContent = `Moderate: ${counts.moderate}`;
+  document.getElementById("cnt-minor").textContent = `Minor: ${counts.minor}`;
+}
+
+function addEntry(html, classes = "", data = {}) {
+  const div = document.createElement("div");
+  div.className = `entry ${classes}`;
+  div.innerHTML = html;
+  for (const [k, v] of Object.entries(data)) div.dataset[k] = v;
+  log.appendChild(div);
+  if (autoScroll) div.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+// SSE
+const es = new EventSource("/events");
+
+es.addEventListener("status", e => {
+  const d = JSON.parse(e.data);
+  addEntry(d.message, "status");
+});
+
+es.addEventListener("page-start", e => {
+  const d = JSON.parse(e.data);
+  progress.textContent = `Auditing page ${d.pageIndex} — ${d.url}`;
+  addEntry(`<strong>Page ${d.pageIndex}:</strong> <span class="url">${d.url}</span>`, "status");
+});
+
+es.addEventListener("page-audit", e => {
+  const d = JSON.parse(e.data);
+  addEntry(
+    `${d.viewport}: ${d.violationCount} violations, ${d.passCount} rules passed`,
+    "status"
+  );
+});
+
+es.addEventListener("violation", e => {
+  const d = JSON.parse(e.data);
+  counts.total++;
+  counts[d.impact] = (counts[d.impact] || 0) + 1;
+  updateCounters();
+
+  const show = filters[d.impact] !== false && filters[d.viewport] !== false;
+  const html = `
+    <span class="impact">${d.impact}</span>
+    <span class="rule">${d.ruleId}</span>
+    <span class="viewport-badge">${d.viewport}</span>
+    — ${d.help}
+    <br><span class="target">${escHtml(d.target)}</span>
+    <br><span class="url">${d.url}</span>
+    ${d.helpUrl ? ` · <a href="${d.helpUrl}" target="_blank">docs</a>` : ""}
+    ${d.wcagTags.length ? ` · <span class="url">${d.wcagTags.join(", ")}</span>` : ""}
+  `;
+  const div = document.createElement("div");
+  div.className = `entry violation ${d.impact}`;
+  div.innerHTML = html;
+  div.dataset.impact = d.impact;
+  div.dataset.viewport = d.viewport;
+  if (!show) div.style.display = "none";
+  log.appendChild(div);
+  if (autoScroll) div.scrollIntoView({ behavior: "smooth", block: "end" });
+});
+
+es.addEventListener("page-error", e => {
+  const d = JSON.parse(e.data);
+  addEntry(`Error on ${d.url} (${d.viewport}): ${d.error}`, "error");
+});
+
+es.addEventListener("complete", e => {
+  const d = JSON.parse(e.data);
+  progress.textContent = `Complete — ${d.totalPages} pages, ${d.totalViolations} violations`;
+  addEntry(`<strong>Audit complete.</strong> ${d.totalPages} pages audited, ${d.totalViolations} total violations.`, "status");
+  exportBtn.disabled = false;
+  es.close();
+});
+
+es.addEventListener("error", () => {
+  progress.textContent = "Connection lost. Refresh to retry.";
+});
+
+exportBtn.addEventListener("click", () => {
+  window.open("/report.json");
+});
+
+function escHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+</body>
+</html>

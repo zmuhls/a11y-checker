@@ -1,0 +1,12 @@
+{
+  "name": "a11y-checker",
+  "version": "1.0.0",
+  "description": "WCAG 2.1 AA accessibility auditor with real-time dashboard",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@axe-core/playwright": "^4.10.1",
+    "playwright": "^1.49.1"
+  }
+}
