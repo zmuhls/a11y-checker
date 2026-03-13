@@ -333,16 +333,16 @@
   </div>
 
   <footer>
-    <a href="https://github.com/zmuhls/a11y-checker">github.com/zmuhls/a11y-checker</a> &middot; MIT
+    <a href="https://github.com/milwrite/a11y-checker">github.com/milwrite/a11y-checker</a> &middot; MIT
   </footer>
 
 </div>
 
 <script>
-// Backend URL — update this after deploying to Render
+// Production backend URL. Keep empty for local development.
 const API = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
   ? ""
-  : "https://a11y-checker.onrender.com";
+  : "https://a11y-checker-production.up.railway.app";
 
 const urlForm = document.getElementById("url-form");
 const urlInput = document.getElementById("url-input");
