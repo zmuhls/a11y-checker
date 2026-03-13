@@ -247,6 +247,12 @@
   .entry.moderate .impact { background: var(--moderate); color: #000; }
   .entry.minor .impact { background: var(--minor); color: #fff; }
 
+  .entry code {
+    background: var(--bg);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+  }
   .entry .url { color: var(--muted); }
   .entry .rule { font-weight: 600; color: var(--accent); }
   .entry a { color: var(--minor); text-decoration: none; }
@@ -436,6 +442,17 @@ async function runAudit(baseUrl) {
       const html = await fetchPage(url);
       if (!html) {
         addEntry(`could not fetch ${url}`, "error");
+        continue;
+      }
+
+      // Detect bot protection (Cloudflare, etc.)
+      if (isBlockedPage(html)) {
+        addEntry(
+          `<strong>${escHtml(url)}</strong> is behind bot protection (Cloudflare). ` +
+          `Client-side auditing can't bypass this. ` +
+          `Run locally instead: <code>node run-audit.js ${escHtml(url)}</code>`,
+          "error"
+        );
         continue;
       }
 
@@ -643,6 +660,17 @@ function rewriteUrls(html, pageUrl) {
   const base = new URL(pageUrl);
   // Inject a <base> tag so relative URLs resolve correctly
   return html.replace(/<head([^>]*)>/i, `<head$1><base href="${escAttr(base.origin + base.pathname)}">`);
+}
+
+function isBlockedPage(html) {
+  const lower = html.toLowerCase();
+  return (
+    (lower.includes("just a moment") && lower.includes("cf-chl")) ||
+    lower.includes("challenge-platform") ||
+    lower.includes("_cf_chl_opt") ||
+    (lower.includes("captcha") && lower.includes("challenge")) ||
+    (lower.includes("please wait") && lower.includes("checking your browser"))
+  );
 }
 
 function normalizeUrl(url) {
