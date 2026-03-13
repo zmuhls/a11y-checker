@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>a11y-checker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.9.1/axe.min.js"></script>
 <style>
   :root {
     --critical: #ff4444;
@@ -98,6 +99,7 @@
   }
 
   .url-form button:hover { background: #e0e0e0; }
+  .url-form button:disabled { opacity: 0.4; cursor: default; }
 
   .hint {
     text-align: center;
@@ -106,42 +108,34 @@
     margin-bottom: 2rem;
   }
 
-  .hint a { color: var(--muted); }
-
-  /* --- REPORT SELECTOR --- */
-  .report-bar {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    margin-bottom: 1rem;
-  }
-
-  .report-bar label {
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--muted);
-  }
-
-  .report-bar select {
-    flex: 1;
-    max-width: 480px;
-    padding: 0.4rem 0.6rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    color: var(--accent);
-    font-family: inherit;
-    font-size: 0.8rem;
-    outline: none;
-  }
-
-  .report-bar select:focus { border-color: var(--dim); }
-
   /* --- DASHBOARD --- */
   .dashboard { display: none; }
   .dashboard.active { display: block; }
+
+  .progress {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   .summary {
     display: flex;
@@ -213,14 +207,7 @@
   }
 
   button.export-btn:hover { border-color: var(--muted); }
-
-  .meta {
-    font-size: 0.75rem;
-    color: var(--muted);
-    margin-bottom: 1rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border);
-  }
+  button.export-btn:disabled { opacity: 0.3; cursor: default; }
 
   #log {
     display: flex;
@@ -243,6 +230,8 @@
   .entry.serious { border-left-color: var(--serious); }
   .entry.moderate { border-left-color: var(--moderate); }
   .entry.minor { border-left-color: var(--minor); }
+  .entry.status { border-left-color: var(--green); color: var(--muted); }
+  .entry.error { border-left-color: var(--critical); color: #cc6666; }
 
   .entry .impact {
     display: inline-block;
@@ -264,22 +253,6 @@
   .entry a:hover { text-decoration: underline; }
   .entry .target { color: var(--muted); font-size: 0.72rem; }
 
-  .entry .viewport-badge {
-    display: inline-block;
-    font-size: 0.65rem;
-    padding: 0.02rem 0.25rem;
-    border-radius: 2px;
-    border: 1px solid var(--border);
-    margin-left: 0.25rem;
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: 2rem 1rem;
-    color: var(--dim);
-    font-size: 0.8rem;
-  }
-
   footer {
     margin-top: 3rem;
     padding-top: 1.5rem;
@@ -292,13 +265,21 @@
   footer a { color: var(--muted); text-decoration: none; }
   footer a:hover { text-decoration: underline; }
 
+  #audit-frame {
+    position: absolute;
+    left: -9999px;
+    top: -9999px;
+    width: 1280px;
+    height: 800px;
+    border: none;
+  }
+
   @media (max-width: 600px) {
     .app-header h1 { font-size: 1.3rem; }
     .app { padding: 1.5rem 1rem; }
     .url-form { flex-direction: column; }
     .url-form input[type="url"] { border-right: 1px solid var(--border); border-radius: 4px 4px 0 0; }
     .url-form button { border-radius: 0 0 4px 4px; }
-    .report-bar select { max-width: 100%; }
   }
 </style>
 </head>
@@ -307,24 +288,27 @@
 
   <div class="app-header">
     <h1>a11y-checker</h1>
-    <p class="tagline">WCAG 2.1 AA accessibility auditor &middot; axe-core + playwright</p>
+    <p class="tagline">WCAG 2.1 AA accessibility auditor &middot; runs in your browser</p>
     <form class="url-form" id="url-form">
       <input type="url" id="url-input" placeholder="https://example.com" required autofocus>
-      <button type="submit">Audit</button>
+      <button type="submit" id="audit-btn">Audit</button>
     </form>
-    <p class="hint">opens a GitHub issue to trigger the audit &middot; results appear below when complete</p>
-  </div>
-
-  <div class="report-bar">
-    <label>Report:</label>
-    <select id="report-select">
-      <option value="">loading...</option>
-    </select>
+    <p class="hint">crawls pages via sitemap + link discovery &middot; checks against WCAG 2.1 AA &middot; up to 20 pages</p>
   </div>
 
   <div class="dashboard" id="dashboard">
-    <div class="meta" id="meta"></div>
-    <div class="summary" id="summary"></div>
+    <div class="progress" id="progress">
+      <div class="spinner" id="spinner"></div>
+      <span id="progress-text">starting...</span>
+    </div>
+
+    <div class="summary" id="summary">
+      <div class="counter" id="cnt-total">0 total</div>
+      <div class="counter critical" id="cnt-critical">0 critical</div>
+      <div class="counter serious" id="cnt-serious">0 serious</div>
+      <div class="counter moderate" id="cnt-moderate">0 moderate</div>
+      <div class="counter minor" id="cnt-minor">0 minor</div>
+    </div>
 
     <div class="toolbar">
       <span class="label-text">Severity:</span>
@@ -332,20 +316,15 @@
       <label class="toggle" data-filter="serious"><input type="checkbox" checked>serious</label>
       <label class="toggle" data-filter="moderate"><input type="checkbox" checked>moderate</label>
       <label class="toggle" data-filter="minor"><input type="checkbox" checked>minor</label>
-      <span class="label-text" style="margin-left:0.75rem">Viewport:</span>
-      <label class="toggle" data-filter="desktop"><input type="checkbox" checked>desktop</label>
-      <label class="toggle" data-filter="mobile"><input type="checkbox" checked>mobile</label>
       <span class="spacer"></span>
       <div class="export-group">
-        <button class="export-btn" id="export-json">JSON</button>
-        <button class="export-btn" id="export-csv">CSV</button>
+        <button class="export-btn" id="export-json" disabled>JSON</button>
+        <button class="export-btn" id="export-csv" disabled>CSV</button>
       </div>
     </div>
 
     <div id="log"></div>
   </div>
-
-  <div class="empty-state" id="empty-state"></div>
 
   <footer>
     <a href="https://github.com/zmuhls/a11y-checker">github.com/zmuhls/a11y-checker</a> &middot; MIT
@@ -353,38 +332,29 @@
 
 </div>
 
+<iframe id="audit-frame" sandbox="allow-same-origin"></iframe>
+
 <script>
-const OWNER = "zmuhls";
-const REPO = "a11y-checker";
+const MAX_PAGES = 20;
+const PROXY = "https://api.allorigins.win/raw?url=";
 
-const reportSelect = document.getElementById("report-select");
-const dashboard = document.getElementById("dashboard");
-const emptyState = document.getElementById("empty-state");
+const urlForm = document.getElementById("url-form");
+const urlInput = document.getElementById("url-input");
+const auditBtn = document.getElementById("audit-btn");
+const dashboardEl = document.getElementById("dashboard");
+const progressEl = document.getElementById("progress");
+const progressText = document.getElementById("progress-text");
+const spinnerEl = document.getElementById("spinner");
 const logEl = document.getElementById("log");
-const metaEl = document.getElementById("meta");
-const summaryEl = document.getElementById("summary");
+const exportJson = document.getElementById("export-json");
+const exportCsv = document.getElementById("export-csv");
+const frame = document.getElementById("audit-frame");
 
-const filters = { critical: true, serious: true, moderate: true, minor: true, desktop: true, mobile: true };
-let currentReport = null;
-
-// --- Audit trigger: opens pre-filled GitHub issue ---
-document.getElementById("url-form").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const url = document.getElementById("url-input").value.trim();
-  if (!url) return;
-
-  const title = encodeURIComponent(`audit: ${url}`);
-  const body = encodeURIComponent(
-    `Requesting an accessibility audit for:\n\n\`${url}\`\n\n` +
-    `This issue was created from the [a11y-checker dashboard](https://${OWNER}.github.io/${REPO}/).\n` +
-    `The audit workflow will run automatically and post results here.`
-  );
-
-  window.open(
-    `https://github.com/${OWNER}/${REPO}/issues/new?title=${title}&body=${body}&labels=audit`,
-    "_blank"
-  );
-});
+const counts = { total: 0, critical: 0, serious: 0, moderate: 0, minor: 0 };
+const filters = { critical: true, serious: true, moderate: true, minor: true };
+const allViolations = [];
+let autoScroll = true;
+let running = false;
 
 // --- Filters ---
 document.querySelectorAll(".toggle").forEach((label) => {
@@ -393,116 +363,286 @@ document.querySelectorAll(".toggle").forEach((label) => {
   cb.addEventListener("change", () => {
     filters[key] = cb.checked;
     label.classList.toggle("off", !cb.checked);
-    applyFilters();
+    logEl.querySelectorAll(".entry.violation").forEach((el) => {
+      el.style.display = filters[el.dataset.impact] !== false ? "" : "none";
+    });
   });
 });
 
-function applyFilters() {
-  logEl.querySelectorAll(".entry").forEach((el) => {
-    const show = filters[el.dataset.impact] !== false && filters[el.dataset.viewport] !== false;
-    el.style.display = show ? "" : "none";
-  });
+logEl.addEventListener("scroll", () => {
+  autoScroll = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 40;
+});
+
+// --- Main ---
+urlForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (running) return;
+  const url = urlInput.value.trim();
+  if (!url) return;
+  running = true;
+  auditBtn.disabled = true;
+  auditBtn.textContent = "Running...";
+  logEl.innerHTML = "";
+  counts.total = counts.critical = counts.serious = counts.moderate = counts.minor = 0;
+  allViolations.length = 0;
+  updateCounters();
+  exportJson.disabled = true;
+  exportCsv.disabled = true;
+  dashboardEl.classList.add("active");
+
+  try {
+    await runAudit(url);
+  } catch (err) {
+    addEntry(`audit error: ${err.message}`, "error");
+  }
+
+  spinnerEl.style.display = "none";
+  progressText.textContent = `complete — ${allViolations.length} violations found`;
+  exportJson.disabled = false;
+  exportCsv.disabled = false;
+  auditBtn.disabled = false;
+  auditBtn.textContent = "Audit";
+  running = false;
+});
+
+async function runAudit(baseUrl) {
+  const baseOrigin = new URL(baseUrl).origin;
+  const baseHost = new URL(baseUrl).host;
+  const visited = new Set();
+  const queue = [baseUrl];
+  visited.add(normalizeUrl(baseUrl));
+
+  // Try sitemap discovery
+  addEntry("checking sitemap...", "status");
+  const sitemapUrls = await discoverSitemap(baseOrigin, baseHost);
+  if (sitemapUrls.length > 0) {
+    addEntry(`found ${sitemapUrls.length} pages in sitemap`, "status");
+    for (const u of sitemapUrls) {
+      const norm = normalizeUrl(u);
+      if (!visited.has(norm) && visited.size < MAX_PAGES) {
+        visited.add(norm);
+        queue.push(u);
+      }
+    }
+  }
+
+  let pageIndex = 0;
+  while (queue.length > 0 && pageIndex < MAX_PAGES) {
+    const url = queue.shift();
+    pageIndex++;
+    progressText.textContent = `page ${pageIndex} — ${url}`;
+    addEntry(`<strong>${pageIndex}:</strong> <span class="url">${escHtml(url)}</span>`, "status");
+
+    try {
+      const html = await fetchPage(url);
+      if (!html) {
+        addEntry(`could not fetch ${url}`, "error");
+        continue;
+      }
+
+      // Rewrite relative URLs to absolute
+      const rewritten = rewriteUrls(html, url);
+
+      // Load into iframe and run axe
+      const violations = await auditHtml(rewritten);
+
+      for (const v of violations) {
+        for (const node of v.nodes) {
+          const violation = {
+            url,
+            pageIndex,
+            ruleId: v.id,
+            impact: v.impact || "minor",
+            description: v.description,
+            help: v.help,
+            helpUrl: v.helpUrl,
+            wcagTags: (v.tags || []).filter((t) => t.startsWith("wcag") || t === "best-practice"),
+            target: (node.target || []).join(", "),
+            html: (node.html || "").slice(0, 200),
+          };
+          allViolations.push(violation);
+          counts.total++;
+          counts[violation.impact] = (counts[violation.impact] || 0) + 1;
+          updateCounters();
+          addViolation(violation);
+        }
+      }
+
+      addEntry(`${violations.reduce((s, v) => s + v.nodes.length, 0)} violations`, "status");
+
+      // Discover links
+      if (visited.size < MAX_PAGES) {
+        const links = extractLinks(html, url, baseHost);
+        for (const link of links) {
+          const norm = normalizeUrl(link);
+          if (!visited.has(norm) && visited.size < MAX_PAGES) {
+            visited.add(norm);
+            queue.push(link);
+          }
+        }
+      }
+    } catch (err) {
+      addEntry(`error on ${url}: ${escHtml(err.message)}`, "error");
+    }
+  }
+
+  addEntry(`<strong>audit complete.</strong> ${pageIndex} pages, ${allViolations.length} violations.`, "status");
 }
 
-// --- Load reports ---
-async function loadIndex() {
-  try {
-    const res = await fetch("results/index.json", { cache: "no-store" });
-    if (!res.ok) throw new Error("No results");
-    const index = await res.json();
-    if (!index.length) throw new Error("Empty");
+// --- Page fetching ---
+async function fetchPage(url) {
+  const res = await fetch(PROXY + encodeURIComponent(url));
+  if (!res.ok) return null;
+  const text = await res.text();
+  return text;
+}
 
-    reportSelect.innerHTML = "";
-    for (const entry of index) {
-      const opt = document.createElement("option");
-      opt.value = entry.file;
-      const date = new Date(entry.timestamp).toLocaleDateString("en-US", {
-        month: "short", day: "numeric", year: "numeric",
-        hour: "2-digit", minute: "2-digit",
-      });
-      const host = safeHost(entry.url);
-      opt.textContent = `${host} — ${entry.totalViolations} violations — ${date}`;
-      reportSelect.appendChild(opt);
+// --- Sitemap discovery ---
+async function discoverSitemap(origin, host) {
+  const urls = [];
+  try {
+    // Check robots.txt for sitemap directives
+    const robotsTxt = await fetchPage(origin + "/robots.txt");
+    const sitemapLocs = [origin + "/sitemap.xml"];
+    if (robotsTxt) {
+      for (const line of robotsTxt.split("\n")) {
+        const match = line.match(/^sitemap:\s*(.+)/i);
+        if (match) sitemapLocs.push(match[1].trim());
+      }
     }
 
-    reportSelect.addEventListener("change", () => loadReport(reportSelect.value));
-    loadReport(index[0].file);
-  } catch (_) {
-    reportSelect.innerHTML = "<option value=''>no reports yet</option>";
-    emptyState.textContent = "Enter a URL above to run your first audit.";
-    emptyState.style.display = "block";
-    dashboard.classList.remove("active");
-  }
+    for (const loc of [...new Set(sitemapLocs)]) {
+      try {
+        const xml = await fetchPage(loc);
+        if (!xml) continue;
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(xml, "text/xml");
+        for (const locEl of doc.querySelectorAll("loc")) {
+          const u = locEl.textContent.trim();
+          try {
+            if (new URL(u).host === host) urls.push(u);
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+  return urls;
 }
 
-async function loadReport(file) {
-  if (!file) return;
-  try {
-    const res = await fetch(`results/${file}`, { cache: "no-store" });
-    currentReport = await res.json();
-    renderReport(currentReport);
-  } catch (err) {
-    logEl.innerHTML = `<div class="entry" style="color:var(--critical)">failed to load report: ${escHtml(err.message)}</div>`;
+// --- Link extraction ---
+function extractLinks(html, pageUrl, baseHost) {
+  const links = [];
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  const base = new URL(pageUrl);
+
+  for (const a of doc.querySelectorAll("a[href]")) {
+    try {
+      const href = a.getAttribute("href");
+      if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("javascript:")) continue;
+      const resolved = new URL(href, base);
+      if (resolved.host === baseHost && (resolved.protocol === "https:" || resolved.protocol === "http:")) {
+        resolved.hash = "";
+        links.push(resolved.href);
+      }
+    } catch (_) {}
   }
+  return links;
 }
 
-function renderReport(report) {
-  emptyState.style.display = "none";
-  dashboard.classList.add("active");
-
-  const host = safeHost(report.url);
-  const date = new Date(report.timestamp).toLocaleDateString("en-US", {
-    weekday: "short", month: "short", day: "numeric", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
+// --- axe-core auditing ---
+function auditHtml(html) {
+  return new Promise((resolve, reject) => {
+    frame.srcdoc = html;
+    frame.onload = async () => {
+      try {
+        const doc = frame.contentDocument;
+        if (!doc || !doc.body) { resolve([]); return; }
+        const results = await axe.run(doc, {
+          runOnly: {
+            type: "tag",
+            values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"],
+          },
+        });
+        resolve(results.violations);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    frame.onerror = () => resolve([]);
+    // Timeout fallback
+    setTimeout(() => resolve([]), 15000);
   });
-  metaEl.innerHTML = `<strong>${escHtml(host)}</strong> &middot; ${report.totalPages} pages &middot; ${date}`;
+}
 
-  const counts = { critical: 0, serious: 0, moderate: 0, minor: 0 };
-  for (const v of report.violations) {
-    counts[v.impact] = (counts[v.impact] || 0) + 1;
+// --- URL rewriting ---
+function rewriteUrls(html, pageUrl) {
+  const base = new URL(pageUrl);
+  // Inject a <base> tag so relative URLs resolve correctly
+  return html.replace(/<head([^>]*)>/i, `<head$1><base href="${escAttr(base.origin + base.pathname)}">`);
+}
+
+function normalizeUrl(url) {
+  try {
+    const u = new URL(url);
+    u.hash = "";
+    return u.origin + u.pathname.replace(/\/+$/, "");
+  } catch (_) {
+    return url;
   }
+}
 
-  summaryEl.innerHTML = `
-    <div class="counter">${report.totalViolations} total</div>
-    <div class="counter critical">${counts.critical} critical</div>
-    <div class="counter serious">${counts.serious} serious</div>
-    <div class="counter moderate">${counts.moderate} moderate</div>
-    <div class="counter minor">${counts.minor} minor</div>
+// --- UI ---
+function updateCounters() {
+  document.getElementById("cnt-total").textContent = `${counts.total} total`;
+  document.getElementById("cnt-critical").textContent = `${counts.critical} critical`;
+  document.getElementById("cnt-serious").textContent = `${counts.serious} serious`;
+  document.getElementById("cnt-moderate").textContent = `${counts.moderate} moderate`;
+  document.getElementById("cnt-minor").textContent = `${counts.minor} minor`;
+}
+
+function addEntry(html, cls) {
+  const div = document.createElement("div");
+  div.className = `entry ${cls}`;
+  div.innerHTML = html;
+  logEl.appendChild(div);
+  if (autoScroll) div.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+function addViolation(v) {
+  const div = document.createElement("div");
+  div.className = `entry violation ${v.impact}`;
+  div.dataset.impact = v.impact;
+  div.innerHTML = `
+    <span class="impact">${v.impact}</span>
+    <span class="rule">${escHtml(v.ruleId)}</span>
+    — ${escHtml(v.help)}
+    <br><span class="target">${escHtml(v.target)}</span>
+    <br><span class="url">${escHtml(v.url)}</span>
+    ${v.helpUrl ? ` &middot; <a href="${escAttr(v.helpUrl)}" target="_blank" rel="noopener">docs</a>` : ""}
+    ${v.wcagTags.length ? ` &middot; <span class="url">${escHtml(v.wcagTags.join(", "))}</span>` : ""}
   `;
-
-  logEl.innerHTML = "";
-  for (const v of report.violations) {
-    const div = document.createElement("div");
-    div.className = `entry ${v.impact}`;
-    div.dataset.impact = v.impact;
-    div.dataset.viewport = v.viewport;
-    div.innerHTML = `
-      <span class="impact">${v.impact}</span>
-      <span class="rule">${escHtml(v.ruleId)}</span>
-      <span class="viewport-badge">${v.viewport}</span>
-      — ${escHtml(v.help)}
-      <br><span class="target">${escHtml(v.target)}</span>
-      <br><span class="url">${escHtml(v.url)}</span>
-      ${v.helpUrl ? ` &middot; <a href="${escAttr(v.helpUrl)}" target="_blank" rel="noopener">docs</a>` : ""}
-      ${v.wcagTags && v.wcagTags.length ? ` &middot; <span class="url">${escHtml(v.wcagTags.join(", "))}</span>` : ""}
-    `;
-    const show = filters[v.impact] !== false && filters[v.viewport] !== false;
-    if (!show) div.style.display = "none";
-    logEl.appendChild(div);
-  }
+  if (!filters[v.impact]) div.style.display = "none";
+  logEl.appendChild(div);
+  if (autoScroll) div.scrollIntoView({ behavior: "smooth", block: "end" });
 }
 
 // --- Export ---
-document.getElementById("export-json").addEventListener("click", () => {
-  if (!currentReport) return;
-  downloadBlob(JSON.stringify(currentReport, null, 2), "a11y-report.json", "application/json");
+exportJson.addEventListener("click", () => {
+  if (!allViolations.length) return;
+  const report = {
+    timestamp: new Date().toISOString(),
+    totalViolations: allViolations.length,
+    violations: allViolations,
+  };
+  downloadBlob(JSON.stringify(report, null, 2), "a11y-report.json", "application/json");
 });
 
-document.getElementById("export-csv").addEventListener("click", () => {
-  if (!currentReport) return;
-  const header = "url,viewport,impact,ruleId,help,target,wcagTags,helpUrl\n";
-  const rows = currentReport.violations.map((v) =>
-    [v.url, v.viewport, v.impact, v.ruleId,
+exportCsv.addEventListener("click", () => {
+  if (!allViolations.length) return;
+  const header = "url,impact,ruleId,help,target,wcagTags,helpUrl\n";
+  const rows = allViolations.map((v) =>
+    [v.url, v.impact, v.ruleId,
      `"${(v.help || "").replace(/"/g, '""')}"`,
      `"${(v.target || "").replace(/"/g, '""')}"`,
      `"${(v.wcagTags || []).join("; ")}"`,
@@ -520,10 +660,6 @@ function downloadBlob(content, filename, type) {
   URL.revokeObjectURL(a.href);
 }
 
-function safeHost(url) {
-  try { return new URL(url).hostname; } catch (_) { return url; }
-}
-
 function escHtml(s) {
   const d = document.createElement("div");
   d.textContent = s || "";
@@ -533,8 +669,6 @@ function escHtml(s) {
 function escAttr(s) {
   return (s || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-
-loadIndex();
 </script>
 </body>
 </html>
