@@ -5,9 +5,11 @@ const { Auditor } = require("./auditor");
 
 const PORT = process.env.PORT || 3000;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
+const docsDir = path.join(__dirname, "..", "docs");
 const clients = new Set();
 let finalReport = null;
 let targetUrl = null;
+let targetMaxPages = null;
 let auditing = false;
 
 function cors(res) {
@@ -23,12 +25,20 @@ function broadcast(event, data) {
   }
 }
 
-function runAudit(baseUrl) {
+function clampMaxPages(value) {
+  const parsed = parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.min(200, Math.max(1, parsed));
+}
+
+function runAudit(baseUrl, maxPages) {
   targetUrl = baseUrl;
+  targetMaxPages = maxPages;
   auditing = true;
   finalReport = null;
 
   console.log(`\nTarget: ${baseUrl}`);
+  if (maxPages) console.log(`Max pages: ${maxPages}`);
   console.log("Starting audit...\n");
 
   const auditor = new Auditor((event, data) => {
@@ -48,7 +58,7 @@ function runAudit(baseUrl) {
       finalReport = data;
       auditing = false;
     }
-  }, { baseUrl });
+  }, { baseUrl, maxPages });
 
   auditor.run().catch((err) => {
     console.error("Audit failed:", err);
@@ -83,7 +93,8 @@ const server = http.createServer((req, res) => {
     req.on("data", (chunk) => { body += chunk; });
     req.on("end", () => {
       try {
-        const { url } = JSON.parse(body);
+        const { url, maxPages } = JSON.parse(body);
+        const normalizedMaxPages = clampMaxPages(maxPages);
         if (!url) throw new Error("Missing url");
         if (auditing) {
           res.writeHead(409, { "Content-Type": "application/json" });
@@ -91,8 +102,8 @@ const server = http.createServer((req, res) => {
           return;
         }
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: true, url }));
-        runAudit(url);
+        res.end(JSON.stringify({ ok: true, url, maxPages: normalizedMaxPages }));
+        runAudit(url, normalizedMaxPages);
       } catch (err) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: err.message }));
@@ -103,7 +114,7 @@ const server = http.createServer((req, res) => {
 
   if (req.url === "/status") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ url: targetUrl, auditing }));
+    res.end(JSON.stringify({ url: targetUrl, maxPages: targetMaxPages, auditing }));
     return;
   }
 
@@ -123,9 +134,15 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.url === "/favicon.svg") {
+    res.writeHead(200, { "Content-Type": "image/svg+xml" });
+    res.end(fs.readFileSync(path.join(docsDir, "favicon.svg")));
+    return;
+  }
+
   if (req.url === "/" || req.url === "/index.html") {
     res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(fs.readFileSync(path.join(__dirname, "..", "docs", "index.html")));
+    res.end(fs.readFileSync(path.join(docsDir, "index.html")));
     return;
   }
 

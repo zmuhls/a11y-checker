@@ -46,6 +46,43 @@
   .app-header {
     text-align: center;
     padding: 2rem 0 1.5rem;
+    position: relative;
+  }
+
+  .header-mark {
+    width: clamp(120px, 20vw, 172px);
+    margin: 0 auto 1rem;
+    position: relative;
+  }
+
+  .header-mark::before {
+    content: "";
+    position: absolute;
+    inset: -12%;
+    background: radial-gradient(circle at 50% 55%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05) 34%, rgba(10, 10, 10, 0) 70%);
+    filter: blur(24px);
+    opacity: 0.85;
+    pointer-events: none;
+  }
+
+  .header-mark::after {
+    content: "";
+    position: absolute;
+    inset: 10% 14% 18%;
+    border-radius: 28px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
+    mix-blend-mode: screen;
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  .header-mark img {
+    display: block;
+    width: 100%;
+    height: auto;
+    position: relative;
+    opacity: 0.9;
+    filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.5));
   }
 
   .app-header h1 {
@@ -85,6 +122,29 @@
 
   .url-form input[type="url"]:focus { border-color: var(--dim); }
   .url-form input[type="url"]::placeholder { color: var(--muted); }
+
+  .page-limit {
+    width: 96px;
+    padding: 0.6rem 0.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-right: none;
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 0.8rem;
+    text-align: center;
+    outline: none;
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+
+  .page-limit::-webkit-outer-spin-button,
+  .page-limit::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .page-limit:focus { border-color: var(--dim); }
 
   .url-form button {
     padding: 0.6rem 1.4rem;
@@ -254,11 +314,96 @@
     border-radius: 3px;
     font-size: 0.75rem;
   }
+
+  .meta-chip {
+    display: inline-block;
+    font-size: 0.65rem;
+    border: 1px solid var(--border);
+    padding: 0.02rem 0.25rem;
+    border-radius: 2px;
+    margin-left: 0.25rem;
+    color: var(--muted);
+  }
+
+  .target-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.18rem;
+  }
+
+  .more-targets {
+    color: var(--dim);
+    font-size: 0.72rem;
+  }
+
   .entry .url { color: var(--muted); }
   .entry .rule { font-weight: 600; color: var(--accent); }
   .entry a { color: var(--minor); text-decoration: none; }
   .entry a:hover { text-decoration: underline; }
   .entry .target { color: var(--muted); font-size: 0.72rem; }
+
+  .page-record {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .page-record summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 0.5rem 0.65rem;
+  }
+
+  .page-record summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .page-record[open] summary {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .page-summary-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
+    margin-bottom: 0.15rem;
+  }
+
+  .page-summary-label {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .page-summary-url {
+    color: var(--muted);
+    font-size: 0.76rem;
+    word-break: break-word;
+  }
+
+  .page-record-body {
+    padding: 0.55rem 0.65rem 0.65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .page-record-stats,
+  .page-record-issues {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .page-record-empty {
+    font-size: 0.72rem;
+    color: var(--dim);
+  }
 
   footer {
     margin-top: 3rem;
@@ -286,6 +431,7 @@
     .app { padding: 1.5rem 1rem; }
     .url-form { flex-direction: column; }
     .url-form input[type="url"] { border-right: 1px solid var(--border); border-radius: 4px 4px 0 0; }
+    .page-limit { width: 100%; border-right: 1px solid var(--border); border-top: none; }
     .url-form button { border-radius: 0 0 4px 4px; }
   }
 </style>
@@ -294,13 +440,17 @@
 <div class="app">
 
   <div class="app-header">
+    <div class="header-mark" aria-hidden="true">
+      <img src="./favicon.svg" alt="">
+    </div>
     <h1>a11y-checker</h1>
     <p class="tagline">WCAG 2.1 AA accessibility auditor &middot; runs in your browser</p>
     <form class="url-form" id="url-form">
       <input type="url" id="url-input" placeholder="https://example.com" required autofocus>
+      <input type="number" class="page-limit" id="page-limit" min="1" max="200" value="20" aria-label="Max pages" title="Max pages">
       <button type="submit" id="audit-btn">Audit</button>
     </form>
-    <p class="hint">starts at the landing page, crawls internal links outward, then uses sitemap fallback &middot; WCAG 2.1 AA &middot; up to 20 pages</p>
+    <p class="hint">starts at the landing page, crawls internal links outward, then uses sitemap fallback &middot; choose how many pages to keep crawling</p>
   </div>
 
   <div class="dashboard" id="dashboard">
@@ -347,6 +497,7 @@ const API = window.location.hostname === "localhost" || window.location.hostname
 
 const urlForm = document.getElementById("url-form");
 const urlInput = document.getElementById("url-input");
+const pageLimitInput = document.getElementById("page-limit");
 const auditBtn = document.getElementById("audit-btn");
 const dashboardEl = document.getElementById("dashboard");
 const progressText = document.getElementById("progress-text");
@@ -358,6 +509,8 @@ const exportCsv = document.getElementById("export-csv");
 const counts = { total: 0, critical: 0, serious: 0, moderate: 0, minor: 0 };
 const filters = { critical: true, serious: true, moderate: true, minor: true, desktop: true, mobile: true };
 const allViolations = [];
+const groupedViolations = new Map();
+const pageRecords = new Map();
 let autoScroll = true;
 let running = false;
 
@@ -384,6 +537,7 @@ urlForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (running) return;
   const url = urlInput.value.trim();
+  const maxPages = clampNumber(pageLimitInput.value, 1, 200, 20);
   if (!url) return;
 
   running = true;
@@ -392,25 +546,27 @@ urlForm.addEventListener("submit", async (e) => {
   logEl.innerHTML = "";
   counts.total = counts.critical = counts.serious = counts.moderate = counts.minor = 0;
   allViolations.length = 0;
+  groupedViolations.clear();
+  pageRecords.clear();
   updateCounters();
   exportJson.disabled = true;
   exportCsv.disabled = true;
   dashboardEl.classList.add("active");
   spinnerEl.style.display = "";
-  progressText.textContent = "connecting to server...";
+  progressText.textContent = `connecting to server for up to ${maxPages} pages...`;
 
   try {
     // Trigger the audit on the backend
     const res = await fetch(`${API}/audit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, maxPages }),
     });
 
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Server error");
 
-    progressText.textContent = "audit started — streaming results...";
+    progressText.textContent = `audit started — streaming up to ${data.maxPages || maxPages} pages...`;
 
     // Connect to SSE stream
     await streamResults();
@@ -437,21 +593,18 @@ function streamResults() {
     es.addEventListener("page-start", (e) => {
       const d = JSON.parse(e.data);
       progressText.textContent = `page ${d.pageIndex} — ${d.url}`;
-      addEntry(`<strong>${d.pageIndex}:</strong> <span class="url">${escHtml(d.url)}</span>`, "status");
+      ensurePageRecord(d);
     });
 
     es.addEventListener("page-audit", (e) => {
       const d = JSON.parse(e.data);
-      addEntry(`${d.viewport}: ${d.violationCount} violations, ${d.passCount} passed`, "status");
+      recordPageAudit(d);
     });
 
     es.addEventListener("violation", (e) => {
       const d = JSON.parse(e.data);
-      counts.total++;
-      counts[d.impact] = (counts[d.impact] || 0) + 1;
-      updateCounters();
-
       const v = {
+        pageIndex: d.pageIndex,
         url: d.url,
         viewport: d.viewport,
         impact: d.impact,
@@ -463,19 +616,24 @@ function streamResults() {
         html: d.html,
       };
       allViolations.push(v);
-      addViolation(v);
+      upsertViolationGroup(v);
     });
 
     es.addEventListener("page-error", (e) => {
       const d = JSON.parse(e.data);
-      addEntry(`error on ${escHtml(d.url)} (${d.viewport}): ${escHtml(d.error)}`, "error");
+      recordPageError(d);
+    });
+
+    es.addEventListener("page-done", (e) => {
+      const d = JSON.parse(e.data);
+      finalizePageRecord(d);
     });
 
     es.addEventListener("complete", (e) => {
       const d = JSON.parse(e.data);
       spinnerEl.style.display = "none";
-      progressText.textContent = `complete — ${d.totalPages} pages, ${d.totalViolations} violations`;
-      addEntry(`<strong>audit complete.</strong> ${d.totalPages} pages, ${d.totalViolations} violations.`, "status");
+      progressText.textContent = `complete — ${d.totalPages} pages, ${groupedViolations.size} grouped issues across ${d.totalViolations} failing nodes`;
+      addEntry(`<strong>audit complete.</strong> ${d.totalPages} pages, ${groupedViolations.size} grouped issues across ${d.totalViolations} failing nodes.`, "status");
       exportJson.disabled = false;
       exportCsv.disabled = false;
       es.close();
@@ -493,7 +651,7 @@ function streamResults() {
 
 // --- UI ---
 function updateCounters() {
-  document.getElementById("cnt-total").textContent = `${counts.total} total`;
+  document.getElementById("cnt-total").textContent = `${counts.total} groups`;
   document.getElementById("cnt-critical").textContent = `${counts.critical} critical`;
   document.getElementById("cnt-serious").textContent = `${counts.serious} serious`;
   document.getElementById("cnt-moderate").textContent = `${counts.moderate} moderate`;
@@ -508,25 +666,161 @@ function addEntry(html, cls) {
   if (autoScroll) div.scrollIntoView({ behavior: "smooth", block: "end" });
 }
 
-function addViolation(v) {
-  const div = document.createElement("div");
-  div.className = `entry violation ${v.impact}`;
-  div.dataset.impact = v.impact;
-  div.dataset.viewport = v.viewport || "";
-  const show = filters[v.impact] !== false && (!v.viewport || filters[v.viewport] !== false);
-  div.innerHTML = `
-    <span class="impact">${v.impact}</span>
-    <span class="rule">${escHtml(v.ruleId)}</span>
-    ${v.viewport ? `<span style="font-size:0.65rem;border:1px solid var(--border);padding:0.02rem 0.25rem;border-radius:2px;margin-left:0.25rem">${v.viewport}</span>` : ""}
-    — ${escHtml(v.help)}
-    <br><span class="target">${escHtml(v.target)}</span>
-    <br><span class="url">${escHtml(v.url)}</span>
-    ${v.helpUrl ? ` &middot; <a href="${escAttr(v.helpUrl)}" target="_blank" rel="noopener">docs</a>` : ""}
-    ${v.wcagTags && v.wcagTags.length ? ` &middot; <span class="url">${escHtml(v.wcagTags.join(", "))}</span>` : ""}
+function violationKey(v) {
+  return [v.pageIndex, v.viewport || "", v.ruleId, v.impact].join("|");
+}
+
+function ensurePageRecord(data) {
+  let record = pageRecords.get(data.pageIndex);
+  if (!record) {
+    const details = document.createElement("details");
+    details.className = "page-record";
+
+    const summary = document.createElement("summary");
+    const body = document.createElement("div");
+    body.className = "page-record-body";
+
+    const stats = document.createElement("div");
+    stats.className = "page-record-stats";
+
+    const issues = document.createElement("div");
+    issues.className = "page-record-issues";
+
+    body.appendChild(stats);
+    body.appendChild(issues);
+    details.appendChild(summary);
+    details.appendChild(body);
+    logEl.appendChild(details);
+
+    record = {
+      pageIndex: data.pageIndex,
+      url: data.url,
+      depth: data.depth,
+      state: "running",
+      groupedIssueCount: 0,
+      nodeCount: 0,
+      viewportStats: {},
+      summaryEl: summary,
+      statsEl: stats,
+      issuesEl: issues,
+      detailsEl: details,
+    };
+    pageRecords.set(data.pageIndex, record);
+  }
+
+  if (data.url) record.url = data.url;
+  if (typeof data.depth === "number") record.depth = data.depth;
+  if (data.state) record.state = data.state;
+  renderPageRecord(record);
+  return record;
+}
+
+function renderPageRecord(record) {
+  const viewportChips = Object.entries(record.viewportStats).map(([viewport, stat]) =>
+    `<span class="meta-chip">${escHtml(viewport)} ${stat.violationCount}v / ${stat.passCount}p</span>`
+  ).join("");
+
+  record.summaryEl.innerHTML = `
+    <div class="page-summary-top">
+      <span class="page-summary-label">page ${record.pageIndex}</span>
+      <span class="meta-chip">${escHtml(record.state)}</span>
+      ${typeof record.depth === "number" ? `<span class="meta-chip">depth ${record.depth}</span>` : ""}
+      <span class="meta-chip">${record.groupedIssueCount} groups</span>
+      <span class="meta-chip">${record.nodeCount} nodes</span>
+    </div>
+    <div class="page-summary-url">${escHtml(record.url || "")}</div>
   `;
-  if (!show) div.style.display = "none";
-  logEl.appendChild(div);
-  if (autoScroll) div.scrollIntoView({ behavior: "smooth", block: "end" });
+
+  record.statsEl.innerHTML = viewportChips || `<div class="page-record-empty">Waiting for audit results...</div>`;
+}
+
+function recordPageAudit(data) {
+  const record = ensurePageRecord({ pageIndex: data.pageIndex, url: data.url, state: "running" });
+  record.viewportStats[data.viewport] = {
+    violationCount: data.violationCount,
+    passCount: data.passCount,
+  };
+  renderPageRecord(record);
+}
+
+function recordPageError(data) {
+  const record = ensurePageRecord({ pageIndex: data.pageIndex, url: data.url, state: "error" });
+  const errorEl = document.createElement("div");
+  errorEl.className = "entry error";
+  errorEl.innerHTML = `error on ${escHtml(data.url)} (${escHtml(data.viewport)}): ${escHtml(data.error)}`;
+  record.issuesEl.appendChild(errorEl);
+  renderPageRecord(record);
+}
+
+function finalizePageRecord(data) {
+  const record = ensurePageRecord({ pageIndex: data.pageIndex, url: data.url, depth: data.depth, state: "done" });
+  renderPageRecord(record);
+}
+
+function upsertViolationGroup(v) {
+  const key = violationKey(v);
+  let group = groupedViolations.get(key);
+  const record = ensurePageRecord({ pageIndex: v.pageIndex, url: v.url, state: "running" });
+
+  if (!group) {
+    const el = document.createElement("div");
+    el.className = `entry violation ${v.impact}`;
+    el.dataset.impact = v.impact;
+    el.dataset.viewport = v.viewport || "";
+
+    group = {
+      ...v,
+      count: 0,
+      targets: [],
+      targetSet: new Set(),
+      el,
+    };
+    groupedViolations.set(key, group);
+    record.groupedIssueCount++;
+
+    counts.total++;
+    counts[v.impact] = (counts[v.impact] || 0) + 1;
+    updateCounters();
+
+    record.issuesEl.appendChild(el);
+    if (autoScroll) el.scrollIntoView({ behavior: "smooth", block: "end" });
+  }
+
+  group.count++;
+  record.nodeCount++;
+  if (v.target && !group.targetSet.has(v.target)) {
+    group.targetSet.add(v.target);
+    group.targets.push(v.target);
+  }
+
+  renderViolationGroup(group);
+  renderPageRecord(record);
+}
+
+function renderViolationGroup(group) {
+  const show = filters[group.impact] !== false && (!group.viewport || filters[group.viewport] !== false);
+  const previewTargets = group.targets.slice(0, 3);
+  const remainingTargets = Math.max(0, group.targets.length - previewTargets.length);
+
+  group.el.innerHTML = `
+    <span class="impact">${group.impact}</span>
+    <span class="rule">${escHtml(group.ruleId)}</span>
+    ${group.viewport ? `<span class="meta-chip">${escHtml(group.viewport)}</span>` : ""}
+    <span class="meta-chip">${group.count} node${group.count === 1 ? "" : "s"}</span>
+    — ${escHtml(group.help)}
+    <div class="target-list">
+      ${previewTargets.map((target) => `<code>${escHtml(target)}</code>`).join("")}
+      ${remainingTargets ? `<span class="more-targets">+${remainingTargets} more</span>` : ""}
+    </div>
+    <div>
+      <span class="url">${escHtml(group.url)}</span>
+      ${group.helpUrl ? ` &middot; <a href="${escAttr(group.helpUrl)}" target="_blank" rel="noopener">docs</a>` : ""}
+      ${group.wcagTags && group.wcagTags.length ? ` &middot; <span class="url">${escHtml(group.wcagTags.join(", "))}</span>` : ""}
+    </div>
+  `;
+
+  if (!show) group.el.style.display = "none";
+  else group.el.style.display = "";
 }
 
 // --- Export ---
@@ -560,6 +854,12 @@ function downloadBlob(content, filename, type) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+function clampNumber(value, min, max, fallback) {
+  const parsed = parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
 }
 
 function escHtml(s) {

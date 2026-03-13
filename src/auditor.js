@@ -22,6 +22,9 @@ const WCAG_TAGS = [
 ];
 
 const NON_HTML_EXT_RE = /\.(?:pdf|jpe?g|png|gif|svg|webp|ico|css|js|mjs|map|json|xml|txt|zip|gz|mp[34]|mov|avi|webm|woff2?|ttf|eot)$/i;
+const LOW_VALUE_PATH_RE = /\/(?:tag|tags|category|categories|author|authors|archive|archives|feed|rss|amp|print|share)(?:\/|$)/i;
+const PAGINATION_PATH_RE = /\/page\/\d+(?:\/|$)/i;
+const HIGH_VALUE_TEXT_RE = /\b(?:about|accessibility|book|contact|demo|docs|faq|features|get started|help|locations|pricing|product|products|request demo|schedule|service|services|solution|solutions|support|team)\b/i;
 
 class Auditor {
   constructor(emit, { baseUrl, seedPaths = [], maxPages } = {}) {
@@ -32,6 +35,7 @@ class Auditor {
     this.baseUrl = requestedUrl.href;
     this.maxPages = maxPages || MAX_PAGES;
     this.baseHost = requestedUrl.host;
+    this.entryPathSegments = requestedUrl.pathname.split("/").filter(Boolean);
     this.canonicalHost = null;
     this.allowedHosts = new Set(this.expandEquivalentHosts(this.baseHost));
     this.seedUrls = [];
@@ -69,7 +73,12 @@ class Auditor {
       }
 
       const next = this.dequeueUrl();
-      if (!next) break;
+      if (!next) {
+        this.emit("status", {
+          message: `Crawl frontier exhausted after ${pageIndex} pages`,
+        });
+        break;
+      }
 
       let current = next;
       pageIndex++;
@@ -89,6 +98,7 @@ class Auditor {
         } catch (err) {
           this.emit("page-error", {
             url: current.url,
+            pageIndex,
             viewport: vp.name,
             error: err.message,
           });
@@ -204,7 +214,9 @@ class Auditor {
   }
 
   isCrawlablePath(pathname) {
-    return !NON_HTML_EXT_RE.test(pathname || "");
+    return !NON_HTML_EXT_RE.test(pathname || "") &&
+      !LOW_VALUE_PATH_RE.test(pathname || "") &&
+      !PAGINATION_PATH_RE.test(pathname || "");
   }
 
   normalizeUrl(url, { allowUnknownHost = false } = {}) {
@@ -236,23 +248,30 @@ class Auditor {
     }
   }
 
-  scoreLink(url, section, depth) {
+  scoreLink(url, link, depth) {
     const parsed = new URL(url);
     const segments = parsed.pathname.split("/").filter(Boolean);
+    const text = (link.text || "").toLowerCase();
 
-    let score = Math.max(0, 100 - depth * 15);
-    if (section === "nav") score += 35;
-    else if (section === "content") score += 22;
-    else if (section === "page") score += 12;
-    else if (section === "footer") score += 4;
+    let score = Math.max(0, 120 - depth * 18);
+    if (link.section === "nav") score += 40;
+    else if (link.section === "content") score += 24;
+    else if (link.section === "page") score += 10;
+    else if (link.section === "footer") score -= 8;
 
-    if (segments.length === 0) score += 10;
-    else if (segments.length === 1) score += 8;
-    else if (segments.length === 2) score += 4;
+    if (segments.length === 0) score += 14;
+    else if (segments.length === 1) score += 10;
+    else if (segments.length === 2) score += 5;
+    else score -= Math.min(18, (segments.length - 2) * 6);
 
-    if (/\/(blog|news|articles|resources|services|products|about|contact|support|docs)\b/i.test(parsed.pathname)) {
-      score += 6;
+    if (this.entryPathSegments[0] && segments[0] === this.entryPathSegments[0]) {
+      score += 10;
     }
+
+    if (HIGH_VALUE_TEXT_RE.test(parsed.pathname) || HIGH_VALUE_TEXT_RE.test(text)) score += 10;
+    if (/\d{4}/.test(parsed.pathname)) score -= 18;
+    if (segments.some((segment) => /\d{3,}/.test(segment))) score -= 10;
+    if (LOW_VALUE_PATH_RE.test(parsed.pathname) || PAGINATION_PATH_RE.test(parsed.pathname)) score -= 25;
 
     return score;
   }
@@ -303,6 +322,7 @@ class Auditor {
 
       this.emit("page-audit", {
         url: resolvedUrl,
+        pageIndex,
         viewport: viewport.name,
         violationCount: results.violations.reduce((s, v) => s + v.nodes.length, 0),
         passCount: results.passes.length,
@@ -327,6 +347,7 @@ class Auditor {
       const links = await page.$$eval("a[href]", (anchors) =>
         anchors.map((anchor) => ({
           href: anchor.href,
+          text: (anchor.getAttribute("aria-label") || anchor.textContent || "").replace(/\s+/g, " ").trim().slice(0, 160),
           section:
             anchor.closest("nav, header, [role='navigation']") ? "nav" :
             anchor.closest("main, article, [role='main']") ? "content" :
@@ -341,7 +362,7 @@ class Auditor {
         if (!normalized) continue;
         if (this.enqueueUrl(normalized, {
           depth: entry.depth + 1,
-          score: this.scoreLink(normalized, link.section, entry.depth + 1),
+          score: this.scoreLink(normalized, link, entry.depth + 1),
           source: link.section,
         })) {
           discovered++;
