@@ -1,6 +1,8 @@
 name: Run Accessibility Audit
 
 on:
+  issues:
+    types: [opened]
   workflow_dispatch:
     inputs:
       url:
@@ -17,6 +19,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  issues: write
 
 concurrency:
   group: audit
@@ -25,33 +28,96 @@ concurrency:
 jobs:
   audit:
     runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && startsWith(github.event.issue.title, 'audit:'))
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - run: npm ci
 
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
 
+      - name: Parse audit URL
+        id: parse
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "url=${{ inputs.url }}" >> "$GITHUB_OUTPUT"
+            echo "max_pages=${{ inputs.max_pages || '50' }}" >> "$GITHUB_OUTPUT"
+          else
+            TITLE="${{ github.event.issue.title }}"
+            URL="${TITLE#audit: }"
+            URL="${URL#audit:}"
+            URL="$(echo "$URL" | xargs)"
+            echo "url=$URL" >> "$GITHUB_OUTPUT"
+            echo "max_pages=50" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Comment on issue
+        if: github.event_name == 'issues'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '⏳ Audit started for `${{ steps.parse.outputs.url }}`\n\nResults will be posted here and on the [dashboard](https://zmuhls.github.io/a11y-checker/) when complete.'
+            });
+
       - name: Fetch existing results
         continue-on-error: true
         run: |
           mkdir -p docs/results
-          # Try to fetch existing index from deployed pages
           curl -sf "https://zmuhls.github.io/a11y-checker/results/index.json" -o docs/results/index.json || echo "[]" > docs/results/index.json
-          # Fetch existing reports referenced in index
-          for file in $(cat docs/results/index.json | node -e "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{JSON.parse(d).forEach(r=>console.log(r.file))}catch(e){}})"); do
+          for file in $(node -e "try{JSON.parse(require('fs').readFileSync('docs/results/index.json','utf8')).forEach(r=>console.log(r.file))}catch(e){}"); do
             curl -sf "https://zmuhls.github.io/a11y-checker/results/$file" -o "docs/results/$file" || true
           done
 
       - name: Run audit
         env:
-          MAX_PAGES: ${{ inputs.max_pages }}
-        run: node run-audit.js "${{ inputs.url }}"
+          MAX_PAGES: ${{ steps.parse.outputs.max_pages }}
+        run: node run-audit.js "${{ steps.parse.outputs.url }}"
+
+      - name: Post results to issue
+        if: github.event_name == 'issues'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('docs/results/report.json', 'utf8'));
+            const counts = { critical: 0, serious: 0, moderate: 0, minor: 0 };
+            for (const v of report.violations) counts[v.impact] = (counts[v.impact] || 0) + 1;
+
+            const body = [
+              `✅ **Audit complete** for \`${report.url}\``,
+              '',
+              `| Pages | Violations | Critical | Serious | Moderate | Minor |`,
+              `|-------|-----------|----------|---------|----------|-------|`,
+              `| ${report.totalPages} | ${report.totalViolations} | ${counts.critical} | ${counts.serious} | ${counts.moderate} | ${counts.minor} |`,
+              '',
+              `📊 [View full results on the dashboard](https://zmuhls.github.io/a11y-checker/)`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
+
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed',
+              labels: ['audit-complete']
+            });
 
       - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3

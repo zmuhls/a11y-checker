@@ -41,7 +41,6 @@
     padding: 2rem 1.5rem;
   }
 
-  /* --- HEADER + INPUT --- */
   .app-header {
     text-align: center;
     padding: 2rem 0 1.5rem;
@@ -66,7 +65,7 @@
     gap: 0;
     width: 100%;
     max-width: 600px;
-    margin: 0 auto 0.75rem;
+    margin: 0 auto 0.5rem;
   }
 
   .url-form input[type="url"] {
@@ -82,13 +81,8 @@
     outline: none;
   }
 
-  .url-form input[type="url"]:focus {
-    border-color: var(--dim);
-  }
-
-  .url-form input[type="url"]::placeholder {
-    color: var(--muted);
-  }
+  .url-form input[type="url"]:focus { border-color: var(--dim); }
+  .url-form input[type="url"]::placeholder { color: var(--muted); }
 
   .url-form button {
     padding: 0.6rem 1.4rem;
@@ -104,134 +98,15 @@
   }
 
   .url-form button:hover { background: #e0e0e0; }
-  .url-form button:disabled { opacity: 0.4; cursor: default; }
 
-  .token-bar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    font-size: 0.72rem;
+  .hint {
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--dim);
+    margin-bottom: 2rem;
   }
 
-  .token-bar a {
-    color: var(--muted);
-    text-decoration: underline;
-    text-decoration-color: var(--dim);
-    text-underline-offset: 2px;
-    cursor: pointer;
-  }
-
-  .token-bar a:hover { color: var(--text); }
-
-  .token-bar .status {
-    color: var(--green);
-  }
-
-  .token-bar .status.none {
-    color: var(--muted);
-  }
-
-  .token-modal {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.7);
-    z-index: 100;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .token-modal.open { display: flex; }
-
-  .token-dialog {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 1.5rem;
-    max-width: 440px;
-    width: 90%;
-  }
-
-  .token-dialog h3 {
-    font-size: 0.85rem;
-    color: var(--accent);
-    margin-bottom: 0.5rem;
-  }
-
-  .token-dialog p {
-    font-size: 0.78rem;
-    color: var(--muted);
-    margin-bottom: 0.75rem;
-    line-height: 1.6;
-  }
-
-  .token-dialog input {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    color: var(--accent);
-    font-family: inherit;
-    font-size: 0.82rem;
-    margin-bottom: 0.75rem;
-    outline: none;
-  }
-
-  .token-dialog .btn-row {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-  }
-
-  .token-dialog button {
-    padding: 0.35rem 0.8rem;
-    border-radius: 3px;
-    font-family: inherit;
-    font-size: 0.78rem;
-    cursor: pointer;
-    border: 1px solid var(--border);
-  }
-
-  .token-dialog .btn-save {
-    background: var(--accent);
-    color: var(--bg);
-    border-color: var(--accent);
-  }
-
-  .token-dialog .btn-cancel {
-    background: var(--surface);
-    color: var(--text);
-  }
-
-  /* --- STATUS --- */
-  .status-bar {
-    display: none;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 1rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    margin-bottom: 1.5rem;
-    font-size: 0.78rem;
-    color: var(--muted);
-  }
-
-  .status-bar.visible { display: flex; }
-
-  .spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .hint a { color: var(--muted); }
 
   /* --- REPORT SELECTOR --- */
   .report-bar {
@@ -265,10 +140,7 @@
   .report-bar select:focus { border-color: var(--dim); }
 
   /* --- DASHBOARD --- */
-  .dashboard {
-    display: none;
-  }
-
+  .dashboard { display: none; }
   .dashboard.active { display: block; }
 
   .summary {
@@ -435,37 +307,14 @@
 
   <div class="app-header">
     <h1>a11y-checker</h1>
-    <p class="tagline">WCAG 2.1 AA accessibility auditor &middot; powered by axe-core + playwright</p>
+    <p class="tagline">WCAG 2.1 AA accessibility auditor &middot; axe-core + playwright</p>
     <form class="url-form" id="url-form">
       <input type="url" id="url-input" placeholder="https://example.com" required autofocus>
-      <button type="submit" id="audit-btn">Audit</button>
+      <button type="submit">Audit</button>
     </form>
-    <div class="token-bar">
-      <span id="token-status" class="status none">no token set</span>
-      <a id="token-link">configure github token</a>
-    </div>
+    <p class="hint">opens a GitHub issue to trigger the audit &middot; results appear below when complete</p>
   </div>
 
-  <!-- Token modal -->
-  <div class="token-modal" id="token-modal">
-    <div class="token-dialog">
-      <h3>GitHub Personal Access Token</h3>
-      <p>Required to trigger audit workflows from this page. Create a fine-grained token with <strong>Actions (read & write)</strong> permission for <strong>zmuhls/a11y-checker</strong>. Stored in your browser only.</p>
-      <input type="password" id="token-input" placeholder="github_pat_...">
-      <div class="btn-row">
-        <button class="btn-cancel" id="token-cancel">Cancel</button>
-        <button class="btn-save" id="token-save">Save</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Workflow status -->
-  <div class="status-bar" id="status-bar">
-    <div class="spinner"></div>
-    <span id="status-text">Starting audit...</span>
-  </div>
-
-  <!-- Report selector -->
   <div class="report-bar">
     <label>Report:</label>
     <select id="report-select">
@@ -473,7 +322,6 @@
     </select>
   </div>
 
-  <!-- Results dashboard -->
   <div class="dashboard" id="dashboard">
     <div class="meta" id="meta"></div>
     <div class="summary" id="summary"></div>
@@ -508,20 +356,7 @@
 <script>
 const OWNER = "zmuhls";
 const REPO = "a11y-checker";
-const WORKFLOW = "audit.yml";
 
-// Elements
-const urlForm = document.getElementById("url-form");
-const urlInput = document.getElementById("url-input");
-const auditBtn = document.getElementById("audit-btn");
-const tokenLink = document.getElementById("token-link");
-const tokenModal = document.getElementById("token-modal");
-const tokenInput = document.getElementById("token-input");
-const tokenSave = document.getElementById("token-save");
-const tokenCancel = document.getElementById("token-cancel");
-const tokenStatus = document.getElementById("token-status");
-const statusBar = document.getElementById("status-bar");
-const statusText = document.getElementById("status-text");
 const reportSelect = document.getElementById("report-select");
 const dashboard = document.getElementById("dashboard");
 const emptyState = document.getElementById("empty-state");
@@ -532,135 +367,24 @@ const summaryEl = document.getElementById("summary");
 const filters = { critical: true, serious: true, moderate: true, minor: true, desktop: true, mobile: true };
 let currentReport = null;
 
-// --- Token management ---
-function getToken() { return localStorage.getItem("a11y_gh_token") || ""; }
-function setToken(t) { localStorage.setItem("a11y_gh_token", t); updateTokenUI(); }
-
-function updateTokenUI() {
-  const t = getToken();
-  if (t) {
-    tokenStatus.textContent = "token configured";
-    tokenStatus.className = "status";
-    tokenLink.textContent = "change";
-  } else {
-    tokenStatus.textContent = "no token set";
-    tokenStatus.className = "status none";
-    tokenLink.textContent = "configure github token";
-  }
-}
-
-tokenLink.addEventListener("click", () => {
-  tokenInput.value = "";
-  tokenModal.classList.add("open");
-  tokenInput.focus();
-});
-
-tokenCancel.addEventListener("click", () => tokenModal.classList.remove("open"));
-tokenModal.addEventListener("click", (e) => { if (e.target === tokenModal) tokenModal.classList.remove("open"); });
-
-tokenSave.addEventListener("click", () => {
-  const val = tokenInput.value.trim();
-  setToken(val);
-  tokenModal.classList.remove("open");
-});
-
-updateTokenUI();
-
-// --- Trigger audit ---
-urlForm.addEventListener("submit", async (e) => {
+// --- Audit trigger: opens pre-filled GitHub issue ---
+document.getElementById("url-form").addEventListener("submit", (e) => {
   e.preventDefault();
-  const url = urlInput.value.trim();
+  const url = document.getElementById("url-input").value.trim();
   if (!url) return;
 
-  const token = getToken();
-  if (!token) {
-    tokenModal.classList.add("open");
-    tokenInput.focus();
-    return;
-  }
+  const title = encodeURIComponent(`audit: ${url}`);
+  const body = encodeURIComponent(
+    `Requesting an accessibility audit for:\n\n\`${url}\`\n\n` +
+    `This issue was created from the [a11y-checker dashboard](https://${OWNER}.github.io/${REPO}/).\n` +
+    `The audit workflow will run automatically and post results here.`
+  );
 
-  auditBtn.disabled = true;
-  auditBtn.textContent = "Starting...";
-  statusBar.classList.add("visible");
-  statusText.textContent = `Dispatching audit for ${url}...`;
-
-  try {
-    // Trigger workflow
-    const dispatchRes = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/actions/workflows/${WORKFLOW}/dispatches`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ref: "main",
-        inputs: { url },
-      }),
-    });
-
-    if (!dispatchRes.ok) {
-      const err = await dispatchRes.json().catch(() => ({}));
-      throw new Error(err.message || `GitHub API returned ${dispatchRes.status}`);
-    }
-
-    statusText.textContent = "Workflow dispatched. Waiting for it to start...";
-
-    // Poll for the workflow run
-    await new Promise((r) => setTimeout(r, 3000));
-    const runId = await pollForRun(token, url);
-
-    if (runId) {
-      statusText.textContent = "Audit running...";
-      await pollRunCompletion(token, runId);
-      statusText.textContent = "Audit complete. Loading results...";
-
-      // Wait for Pages deployment
-      await new Promise((r) => setTimeout(r, 15000));
-      await loadIndex();
-
-      statusBar.classList.remove("visible");
-    }
-  } catch (err) {
-    statusText.textContent = `Error: ${err.message}`;
-    setTimeout(() => statusBar.classList.remove("visible"), 5000);
-  }
-
-  auditBtn.disabled = false;
-  auditBtn.textContent = "Audit";
+  window.open(
+    `https://github.com/${OWNER}/${REPO}/issues/new?title=${title}&body=${body}&labels=audit`,
+    "_blank"
+  );
 });
-
-async function pollForRun(token, url) {
-  const headers = { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" };
-  for (let i = 0; i < 15; i++) {
-    const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/actions/runs?per_page=5&status=queued,in_progress`, { headers });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.workflow_runs && data.workflow_runs.length > 0) {
-        return data.workflow_runs[0].id;
-      }
-    }
-    await new Promise((r) => setTimeout(r, 3000));
-  }
-  statusText.textContent = "Workflow queued. Results will appear when complete.";
-  return null;
-}
-
-async function pollRunCompletion(token, runId) {
-  const headers = { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" };
-  for (let i = 0; i < 120; i++) {
-    const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/actions/runs/${runId}`, { headers });
-    if (res.ok) {
-      const data = await res.json();
-      const elapsed = Math.floor((Date.now() - new Date(data.created_at).getTime()) / 1000);
-      const mins = Math.floor(elapsed / 60);
-      const secs = elapsed % 60;
-      statusText.textContent = `Audit running... ${mins}:${String(secs).padStart(2, "0")} elapsed`;
-      if (data.status === "completed") return;
-    }
-    await new Promise((r) => setTimeout(r, 5000));
-  }
-}
 
 // --- Filters ---
 document.querySelectorAll(".toggle").forEach((label) => {
@@ -796,7 +520,6 @@ function downloadBlob(content, filename, type) {
   URL.revokeObjectURL(a.href);
 }
 
-// --- Helpers ---
 function safeHost(url) {
   try { return new URL(url).hostname; } catch (_) { return url; }
 }
