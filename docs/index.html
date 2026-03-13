@@ -336,7 +336,6 @@
 
 <script>
 const MAX_PAGES = 20;
-const PROXY = "https://api.allorigins.win/raw?url=";
 
 const urlForm = document.getElementById("url-form");
 const urlInput = document.getElementById("url-input");
@@ -470,15 +469,20 @@ async function runAudit(baseUrl) {
 
       addEntry(`${violations.reduce((s, v) => s + v.nodes.length, 0)} violations`, "status");
 
-      // Discover links
+      // Discover links — prioritize nav, header, footer
       if (visited.size < MAX_PAGES) {
         const links = extractLinks(html, url, baseHost);
+        let added = 0;
         for (const link of links) {
           const norm = normalizeUrl(link);
           if (!visited.has(norm) && visited.size < MAX_PAGES) {
             visited.add(norm);
             queue.push(link);
+            added++;
           }
+        }
+        if (added > 0) {
+          addEntry(`discovered ${added} new pages (${queue.length} queued)`, "status");
         }
       }
     } catch (err) {
@@ -489,19 +493,28 @@ async function runAudit(baseUrl) {
   addEntry(`<strong>audit complete.</strong> ${pageIndex} pages, ${allViolations.length} violations.`, "status");
 }
 
-// --- Page fetching ---
+// --- Page fetching with fallback proxies ---
+const PROXIES = [
+  "https://api.allorigins.win/raw?url=",
+  "https://corsproxy.io/?url=",
+];
+
 async function fetchPage(url) {
-  const res = await fetch(PROXY + encodeURIComponent(url));
-  if (!res.ok) return null;
-  const text = await res.text();
-  return text;
+  for (const proxy of PROXIES) {
+    try {
+      const res = await fetch(proxy + encodeURIComponent(url), { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) continue;
+      const text = await res.text();
+      if (text && text.length > 0) return text;
+    } catch (_) {}
+  }
+  return null;
 }
 
 // --- Sitemap discovery ---
 async function discoverSitemap(origin, host) {
   const urls = [];
   try {
-    // Check robots.txt for sitemap directives
     const robotsTxt = await fetchPage(origin + "/robots.txt");
     const sitemapLocs = [origin + "/sitemap.xml"];
     if (robotsTxt) {
@@ -529,25 +542,52 @@ async function discoverSitemap(origin, host) {
   return urls;
 }
 
-// --- Link extraction ---
+// --- Link extraction: prioritize nav, header, footer, then body ---
 function extractLinks(html, pageUrl, baseHost) {
-  const links = [];
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
   const base = new URL(pageUrl);
 
-  for (const a of doc.querySelectorAll("a[href]")) {
+  // High-priority: links in nav, header, footer, sidebars, role=navigation
+  const highPriority = doc.querySelectorAll(
+    'nav a[href], header a[href], footer a[href], ' +
+    '[role="navigation"] a[href], [role="banner"] a[href], ' +
+    '.nav a[href], .menu a[href], .sidebar a[href], ' +
+    '#nav a[href], #menu a[href], #sidebar a[href], #header a[href], #footer a[href]'
+  );
+
+  // Normal priority: all other links
+  const allAnchors = doc.querySelectorAll("a[href]");
+
+  const seen = new Set();
+  const prioritized = [];
+
+  function addLink(a, priority) {
     try {
       const href = a.getAttribute("href");
-      if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("javascript:")) continue;
+      if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:") || href.startsWith("javascript:")) return;
+      // Skip file downloads, images, feeds
+      if (/\.(pdf|zip|png|jpg|jpeg|gif|svg|xml|rss|atom|css|js)$/i.test(href)) return;
       const resolved = new URL(href, base);
-      if (resolved.host === baseHost && (resolved.protocol === "https:" || resolved.protocol === "http:")) {
-        resolved.hash = "";
-        links.push(resolved.href);
-      }
+      if (resolved.host !== baseHost) return;
+      if (resolved.protocol !== "https:" && resolved.protocol !== "http:") return;
+      resolved.hash = "";
+      resolved.search = "";
+      const norm = resolved.origin + resolved.pathname.replace(/\/+$/, "");
+      if (seen.has(norm)) return;
+      seen.add(norm);
+      prioritized.push({ url: resolved.href, priority });
     } catch (_) {}
   }
-  return links;
+
+  // Add high-priority links first
+  for (const a of highPriority) addLink(a, 0);
+  // Then all other links
+  for (const a of allAnchors) addLink(a, 1);
+
+  // Sort by priority (nav/header/footer first)
+  prioritized.sort((a, b) => a.priority - b.priority);
+  return prioritized.map((p) => p.url);
 }
 
 // --- axe-core auditing ---
