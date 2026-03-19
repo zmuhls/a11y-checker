@@ -70,6 +70,7 @@ function wcagUnderstandingUrl(scTag) {
 }
 
 const NON_HTML_EXT_RE = /\.(?:pdf|jpe?g|png|gif|svg|webp|ico|css|js|mjs|map|json|xml|txt|zip|gz|mp[34]|mov|avi|webm|woff2?|ttf|eot)$/i;
+const INFRA_PATH_RE = /^\/(?:cdn-cgi|\.well-known|wp-json|wp-admin)\//i;
 const LOW_VALUE_PATH_RE = /\/(?:tag|tags|category|categories|author|authors|archive|archives|feed|rss|amp|print|share)(?:\/|$)/i;
 const PAGINATION_PATH_RE = /\/page\/\d+(?:\/|$)/i;
 const HIGH_VALUE_TEXT_RE = /\b(?:about|accessibility|book|contact|demo|docs|faq|features|get started|help|locations|pricing|product|products|request demo|schedule|service|services|solution|solutions|support|team)\b/i;
@@ -105,9 +106,20 @@ class Auditor {
     const browser = await chromium.launch({
       headless: true,
       executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+      args: [
+        "--disable-blink-features=AutomationControlled",
+        "--no-sandbox",
+      ],
     });
     const context = await browser.newContext({
       userAgent: USER_AGENT,
+      locale: "en-US",
+      timezoneId: "America/New_York",
+      javaScriptEnabled: true,
+    });
+    // hide webdriver flag from navigator
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => false });
     });
 
     for (const seedUrl of this.seedUrls) {
@@ -269,6 +281,7 @@ class Auditor {
 
   isCrawlablePath(pathname) {
     return !NON_HTML_EXT_RE.test(pathname || "") &&
+      !INFRA_PATH_RE.test(pathname || "") &&
       !LOW_VALUE_PATH_RE.test(pathname || "") &&
       !PAGINATION_PATH_RE.test(pathname || "");
   }

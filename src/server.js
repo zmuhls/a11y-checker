@@ -162,7 +162,10 @@ async function analyzeReportWithOpenRouter(report) {
   }
 
   const compactReport = summarizeReport(report);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 55000);
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    signal: controller.signal,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -204,6 +207,7 @@ async function analyzeReportWithOpenRouter(report) {
     }),
   });
 
+  clearTimeout(timeout);
   const payload = await response.json();
   if (!response.ok) {
     const message = payload?.error?.message || `OpenRouter request failed with ${response.status}`;
