@@ -616,13 +616,13 @@
       <img src="./favicon.svg" alt="">
     </div>
     <h1>a11y-checker</h1>
-    <p class="tagline">WCAG 2.1 AA accessibility auditor &middot; runs in your browser</p>
+    <p class="tagline">WCAG 2.2 AA accessibility auditor &middot; runs in your browser</p>
     <form class="url-form" id="url-form">
-      <input type="url" id="url-input" placeholder="https://example.com" required autofocus>
+      <input type="text" id="url-input" placeholder="https://example.com or comma-separated URLs" required autofocus>
       <input type="number" class="page-limit" id="page-limit" min="1" max="200" value="20" aria-label="Max pages" title="Max pages">
       <button type="submit" id="audit-btn">Audit</button>
     </form>
-    <p class="hint">starts at the landing page, crawls internal links outward, then uses sitemap fallback &middot; choose how many pages to keep crawling</p>
+    <p class="hint">enter one URL or multiple comma-separated URLs &middot; crawls internal links outward with sitemap fallback &middot; choose how many pages to keep crawling</p>
   </div>
 
   <div class="dashboard" id="dashboard">
@@ -733,9 +733,11 @@ logEl.addEventListener("scroll", () => {
 urlForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (running) return;
-  const url = urlInput.value.trim();
+  const raw = urlInput.value.trim();
   const maxPages = clampNumber(pageLimitInput.value, 1, 200, 20);
-  if (!url) return;
+  if (!raw) return;
+  const urls = raw.split(",").map((u) => u.trim()).filter(Boolean);
+  if (urls.length === 0) return;
 
   running = true;
   auditBtn.disabled = true;
@@ -759,7 +761,7 @@ urlForm.addEventListener("submit", async (e) => {
     const res = await fetch(`${API}/audit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, maxPages }),
+      body: JSON.stringify({ urls, maxPages }),
     });
 
     const data = await res.json();
@@ -811,6 +813,7 @@ function streamResults() {
         help: d.help,
         helpUrl: d.helpUrl,
         wcagTags: d.wcagTags || [],
+        wcagUrls: d.wcagUrls || [],
         target: d.target,
         html: d.html,
       };
@@ -1014,6 +1017,7 @@ function reconcileCompletedReport(report) {
       help: violation.help,
       helpUrl: violation.helpUrl,
       wcagTags: violation.wcagTags || [],
+      wcagUrls: violation.wcagUrls || [],
       target: violation.target,
       html: violation.html,
     };
@@ -1089,6 +1093,7 @@ function renderViolationGroup(group) {
     <div>
       <span class="url">${escHtml(group.url)}</span>
       ${group.helpUrl ? ` &middot; <a href="${escAttr(group.helpUrl)}" target="_blank" rel="noopener">docs</a>` : ""}
+      ${group.wcagUrls && group.wcagUrls.length ? group.wcagUrls.map((u) => ` &middot; <a href="${escAttr(u)}" target="_blank" rel="noopener">W3C</a>`).join("") : ""}
       ${group.wcagTags && group.wcagTags.length ? ` &middot; <span class="url">${escHtml(group.wcagTags.join(", "))}</span>` : ""}
     </div>
   `;
@@ -1110,13 +1115,14 @@ exportJson.addEventListener("click", () => {
 
 exportCsv.addEventListener("click", () => {
   if (!allViolations.length) return;
-  const header = "url,viewport,impact,ruleId,help,target,wcagTags,helpUrl\n";
+  const header = "url,viewport,impact,ruleId,help,target,wcagTags,helpUrl,wcagUrls\n";
   const rows = allViolations.map((v) =>
     [v.url, v.viewport || "", v.impact, v.ruleId,
      `"${(v.help || "").replace(/"/g, '""')}"`,
      `"${(v.target || "").replace(/"/g, '""')}"`,
      `"${(v.wcagTags || []).join("; ")}"`,
-     v.helpUrl || ""].join(",")
+     v.helpUrl || "",
+     `"${(v.wcagUrls || []).join("; ")}"`].join(",")
   ).join("\n");
   downloadBlob(header + rows, "a11y-report.csv", "text/csv");
 });

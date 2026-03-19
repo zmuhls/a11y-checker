@@ -8,6 +8,8 @@ const DISCOVERY_TIMEOUT_MS = parseInt(process.env.DISCOVERY_TIMEOUT_MS, 10) || 2
 const SITEMAP_TIMEOUT_MS = parseInt(process.env.SITEMAP_TIMEOUT_MS, 10) || 10000;
 const RENDER_WAIT_MS = parseInt(process.env.RENDER_WAIT_MS, 10) || 1500;
 
+const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+
 const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 800 },
   { name: "mobile", width: 375, height: 812 },
@@ -18,8 +20,54 @@ const WCAG_TAGS = [
   "wcag2aa",
   "wcag21a",
   "wcag21aa",
+  "wcag22a",
+  "wcag22aa",
   "best-practice",
 ];
+
+// Map axe-core SC tags (e.g. "wcag258") to W3C Understanding doc slugs
+const WCAG_SC_SLUGS = {
+  // WCAG 2.0
+  wcag111: "non-text-content", wcag121: "audio-only-and-video-only-prerecorded",
+  wcag122: "captions-prerecorded", wcag123: "audio-description-or-media-alternative-prerecorded",
+  wcag124: "captions-live", wcag125: "audio-description-prerecorded",
+  wcag131: "info-and-relationships", wcag132: "meaningful-sequence", wcag133: "sensory-characteristics",
+  wcag141: "use-of-color", wcag142: "audio-control", wcag143: "contrast-minimum",
+  wcag144: "resize-text", wcag145: "images-of-text",
+  wcag211: "keyboard", wcag212: "no-keyboard-trap",
+  wcag221: "timing-adjustable", wcag222: "pause-stop-hide", wcag223: "no-three-flashes-or-below-threshold",
+  wcag241: "bypass-blocks", wcag242: "page-titled", wcag243: "focus-order", wcag244: "link-purpose-in-context",
+  wcag246: "headings-and-labels", wcag247: "focus-visible",
+  wcag251: "pointer-gestures", wcag252: "pointer-cancellation", wcag253: "label-in-name",
+  wcag254: "motion-actuation",
+  wcag311: "language-of-page", wcag312: "language-of-parts",
+  wcag321: "on-focus", wcag322: "on-input",
+  wcag331: "error-identification", wcag332: "labels-or-instructions",
+  wcag333: "error-suggestion", wcag334: "error-prevention-legal-financial-data",
+  wcag412: "name-role-value",
+  // WCAG 2.1
+  wcag1310: "identify-input-purpose",
+  wcag1311: "identify-purpose",
+  wcag1312: "identify-purpose",
+  wcag1313: "identify-purpose",
+  wcag2411: "character-key-shortcuts",
+  // WCAG 2.2
+  wcag2411: "focus-not-obscured-minimum",
+  wcag2412: "focus-not-obscured-enhanced",
+  wcag2413: "focus-appearance",
+  wcag257: "dragging-movements",
+  wcag258: "target-size-minimum",
+  wcag326: "consistent-help",
+  wcag337: "redundant-entry",
+  wcag338: "accessible-authentication-minimum",
+  wcag339: "accessible-authentication-enhanced",
+};
+
+function wcagUnderstandingUrl(scTag) {
+  const slug = WCAG_SC_SLUGS[scTag];
+  if (slug) return `https://www.w3.org/WAI/WCAG22/Understanding/${slug}`;
+  return null;
+}
 
 const NON_HTML_EXT_RE = /\.(?:pdf|jpe?g|png|gif|svg|webp|ico|css|js|mjs|map|json|xml|txt|zip|gz|mp[34]|mov|avi|webm|woff2?|ttf|eot)$/i;
 const LOW_VALUE_PATH_RE = /\/(?:tag|tags|category|categories|author|authors|archive|archives|feed|rss|amp|print|share)(?:\/|$)/i;
@@ -58,7 +106,9 @@ class Auditor {
       headless: true,
       executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
     });
-    const context = await browser.newContext();
+    const context = await browser.newContext({
+      userAgent: USER_AGENT,
+    });
 
     for (const seedUrl of this.seedUrls) {
       this.enqueueUrl(seedUrl, { depth: 0, score: 1000, source: "landing" });
@@ -192,7 +242,11 @@ class Auditor {
     if (!a || !b) return false;
     if (a === b) return true;
     const normalize = (host) => host.replace(/^www\./, "");
-    return normalize(a) === normalize(b);
+    const na = normalize(a);
+    const nb = normalize(b);
+    if (na === nb) return true;
+    // treat subdomains of the base domain as equivalent
+    return na.endsWith(`.${nb}`) || nb.endsWith(`.${na}`);
   }
 
   observeResolvedUrl(url) {
@@ -301,6 +355,12 @@ class Auditor {
         .analyze();
 
       for (const v of results.violations) {
+        const wcagTags = v.tags.filter((t) => t.startsWith("wcag") || t === "best-practice");
+        const wcagUrls = [];
+        for (const tag of v.tags) {
+          const url = wcagUnderstandingUrl(tag);
+          if (url) wcagUrls.push(url);
+        }
         for (const node of v.nodes) {
           const violation = {
             url: resolvedUrl,
@@ -311,7 +371,8 @@ class Auditor {
             description: v.description,
             help: v.help,
             helpUrl: v.helpUrl,
-            wcagTags: v.tags.filter((t) => t.startsWith("wcag") || t === "best-practice"),
+            wcagTags,
+            wcagUrls,
             target: node.target.join(", "),
             html: (node.html || "").slice(0, 200),
           };

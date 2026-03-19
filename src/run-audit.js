@@ -2,11 +2,14 @@ const fs = require("fs");
 const path = require("path");
 const { Auditor } = require("./auditor");
 
-const url = process.argv[2];
-if (!url) {
-  console.error("Usage: node src/run-audit.js <url>");
+const rawUrls = process.argv[2];
+if (!rawUrls) {
+  console.error("Usage: node src/run-audit.js <url>[,url2,url3...]");
   process.exit(1);
 }
+const allUrls = rawUrls.split(",").map((u) => u.trim()).filter(Boolean);
+const url = allUrls[0];
+const seedPaths = allUrls.slice(1);
 
 const outDir = process.argv[3] || path.join(__dirname, "..", "docs", "results");
 fs.mkdirSync(outDir, { recursive: true });
@@ -54,7 +57,7 @@ const auditor = new Auditor((event, data) => {
     fs.writeFileSync(indexPath, JSON.stringify(index, null, 2));
     console.log(`Index updated: ${index.length} reports`);
   }
-}, { baseUrl: url });
+}, { baseUrl: url, seedPaths });
 
 auditor.run().catch((err) => {
   console.error("Audit failed:", err);

@@ -213,13 +213,14 @@ async function analyzeReportWithOpenRouter(report) {
   };
 }
 
-function runAudit(baseUrl, maxPages) {
+function runAudit(baseUrl, maxPages, seedPaths = []) {
   targetUrl = baseUrl;
   targetMaxPages = maxPages;
   auditing = true;
   finalReport = null;
 
   console.log(`\nTarget: ${baseUrl}`);
+  if (seedPaths.length > 0) console.log(`Seed URLs: ${seedPaths.join(", ")}`);
   if (maxPages) console.log(`Max pages: ${maxPages}`);
   console.log("Starting audit...\n");
 
@@ -240,7 +241,7 @@ function runAudit(baseUrl, maxPages) {
       finalReport = data;
       auditing = false;
     }
-  }, { baseUrl, maxPages });
+  }, { baseUrl, seedPaths, maxPages });
 
   auditor.run().catch((err) => {
     console.error("Audit failed:", err);
@@ -275,17 +276,25 @@ const server = http.createServer((req, res) => {
     req.on("data", (chunk) => { body += chunk; });
     req.on("end", () => {
       try {
-        const { url, maxPages } = JSON.parse(body);
+        const { url, urls, maxPages } = JSON.parse(body);
         const normalizedMaxPages = clampMaxPages(maxPages);
-        if (!url) throw new Error("Missing url");
+        // Accept a single url or a comma/array of urls
+        const allUrls = urls && urls.length > 0
+          ? urls
+          : url
+            ? url.split(",").map((u) => u.trim()).filter(Boolean)
+            : [];
+        if (allUrls.length === 0) throw new Error("Missing url");
+        const baseUrl = allUrls[0];
+        const seedPaths = allUrls.slice(1);
         if (auditing) {
           res.writeHead(409, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "Audit already in progress" }));
           return;
         }
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: true, url, maxPages: normalizedMaxPages }));
-        runAudit(url, normalizedMaxPages);
+        res.end(JSON.stringify({ ok: true, url: baseUrl, urls: allUrls, maxPages: normalizedMaxPages }));
+        runAudit(baseUrl, normalizedMaxPages, seedPaths);
       } catch (err) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: err.message }));
@@ -327,9 +336,9 @@ const server = http.createServer((req, res) => {
 
   if (req.url === "/report.csv" && finalReport) {
     res.writeHead(200, { "Content-Type": "text/csv" });
-    const header = "url,viewport,impact,ruleId,help,target,wcagTags,helpUrl\n";
+    const header = "url,viewport,impact,ruleId,help,target,wcagTags,helpUrl,wcagUrls\n";
     const rows = finalReport.violations.map((v) =>
-      [v.url, v.viewport, v.impact, v.ruleId, `"${(v.help || "").replace(/"/g, '""')}"`, `"${(v.target || "").replace(/"/g, '""')}"`, `"${(v.wcagTags || []).join("; ")}"`, v.helpUrl || ""].join(",")
+      [v.url, v.viewport, v.impact, v.ruleId, `"${(v.help || "").replace(/"/g, '""')}"`, `"${(v.target || "").replace(/"/g, '""')}"`, `"${(v.wcagTags || []).join("; ")}"`, v.helpUrl || "", `"${(v.wcagUrls || []).join("; ")}"`].join(",")
     ).join("\n");
     res.end(header + rows);
     return;
