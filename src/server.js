@@ -2,6 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { Auditor } = require("./auditor");
+const { researcher } = require("./researcher");
 
 loadEnvFile(path.join(__dirname, "..", ".env"));
 
@@ -335,15 +336,23 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    analyzeReportWithOpenRouter(finalReport)
-      .then((result) => {
-        res.writeHead(200, corsHeaders({ "Content-Type": "application/json" }));
-        res.end(JSON.stringify(result));
-      })
-      .catch((err) => {
-        res.writeHead(502, corsHeaders({ "Content-Type": "application/json" }));
-        res.end(JSON.stringify({ error: err.message }));
-      });
+    Promise.all([
+      analyzeReportWithOpenRouter(finalReport).catch((err) => ({
+        error: err.message,
+      })),
+      researcher(finalReport.violations, {
+        siteUrl: targetUrl,
+        emit: (ev, d) => {
+          if (ev === "status") console.log("[research]", d.message);
+        },
+      }).catch((err) => {
+        console.warn("Deep research failed:", err.message);
+        return [];
+      }),
+    ]).then(([narrative, deepResearch]) => {
+      res.writeHead(200, corsHeaders({ "Content-Type": "application/json" }));
+      res.end(JSON.stringify({ ...narrative, deepResearch }));
+    });
     return;
   }
 
