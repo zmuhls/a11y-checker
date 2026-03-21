@@ -28,8 +28,7 @@ const auditor = new Auditor((event, data) => {
   } else if (event === "complete") {
     console.log(`\nDone. ${data.totalPages} pages, ${data.totalViolations} violations.`);
 
-    const hasResearchKey =
-      process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
+    const hasResearchKey = process.env.OPENROUTER_API_KEY;
 
     const finish = (deepResearch) => {
       const report = {
@@ -84,7 +83,7 @@ const auditor = new Auditor((event, data) => {
         });
     } else {
       console.log(
-        "Deep research skipped (set ANTHROPIC_API_KEY or OPENAI_API_KEY to enable)."
+        "Deep research skipped (set OPENROUTER_API_KEY to enable)."
       );
       finish([]);
     }

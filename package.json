@@ -6,7 +6,7 @@
     "start": "node src/server.js"
   },
   "dependencies": {
-    "@axe-core/playwright": "^4.10.1",
-    "playwright": "^1.49.1"
+    "@axe-core/playwright": "^4.11.1",
+    "playwright": "^1.58.2"
   }
 }

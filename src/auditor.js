@@ -50,7 +50,7 @@ const WCAG_SC_SLUGS = {
   wcag1311: "identify-purpose",
   wcag1312: "identify-purpose",
   wcag1313: "identify-purpose",
-  wcag2411: "character-key-shortcuts",
+  wcag214: "character-key-shortcuts",
   // WCAG 2.2
   wcag2411: "focus-not-obscured-minimum",
   wcag2412: "focus-not-obscured-enhanced",
